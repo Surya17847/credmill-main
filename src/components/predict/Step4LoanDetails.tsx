@@ -9,6 +9,13 @@ interface Step4LoanDetailsProps {
   onChange: (field: string, value: any) => void;
 }
 
+const handleCollateralChange = (value: string, onChange: (field: string, value: any) => void) => {
+  onChange('collateral_type', value);
+  if (value === 'None') {
+    onChange('collateral_value', '0');
+  }
+};
+
 export const Step4LoanDetails = ({ formData, onChange }: Step4LoanDetailsProps) => {
   return (
     <Card className="p-6">
@@ -60,7 +67,7 @@ export const Step4LoanDetails = ({ formData, onChange }: Step4LoanDetailsProps) 
 
         <div>
           <Label htmlFor="collateral_type">Collateral Type *</Label>
-          <Select value={formData.collateral_type} onValueChange={(v) => onChange('collateral_type', v)}>
+          <Select value={formData.collateral_type} onValueChange={(v) => handleCollateralChange(v, onChange)}>
             <SelectTrigger>
               <SelectValue placeholder="Select collateral" />
             </SelectTrigger>
