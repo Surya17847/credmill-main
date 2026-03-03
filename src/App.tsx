@@ -12,6 +12,7 @@ import Explainability from "./pages/Explainability";
 import Fairness from "./pages/Fairness";
 import Predict from "./pages/Predict";
 import Auth from "./pages/Auth";
+import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,8 +26,9 @@ const App = () => (
         <div className="min-h-screen bg-background">
           <Navbar />
           <Routes>
+            <Route path="/" element={<Home />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
             <Route path="/evaluation" element={<ProtectedRoute><Evaluation /></ProtectedRoute>} />
             <Route path="/explainability" element={<ProtectedRoute><Explainability /></ProtectedRoute>} />

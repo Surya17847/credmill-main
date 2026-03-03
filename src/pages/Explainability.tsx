@@ -610,32 +610,38 @@ export default function Explainability() {
               </p>
 
               <div className="space-y-3">
-                {(result?.lime_explanation?.contributions || []).map((item: any, index: number) => (
-                  <div 
-                    key={index} 
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3 flex-1">
-                      {item.impact === "positive" ? (
-                        <TrendingUp className="text-red-500 h-5 w-5 flex-shrink-0" />
-                      ) : (
-                        <TrendingDown className="text-green-500 h-5 w-5 flex-shrink-0" />
-                      )}
-                      <div className="flex-1">
-                        <p className="font-medium">{item.feature}</p>
-                        <p className="text-xs text-muted-foreground">{item.description}</p>
+                {(result?.lime_explanation?.contributions || []).map((item: any, index: number) => {
+                  // LIME: positive weight = increases default risk, negative weight = reduces risk
+                  const isRiskIncreasing = item.weight > 0;
+                  return (
+                    <div 
+                      key={index} 
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 flex-1">
+                        {isRiskIncreasing ? (
+                          <TrendingUp className="text-red-500 h-5 w-5 flex-shrink-0" />
+                        ) : (
+                          <TrendingDown className="text-green-500 h-5 w-5 flex-shrink-0" />
+                        )}
+                        <div className="flex-1">
+                          <p className="font-medium">{item.feature}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {isRiskIncreasing ? 'Increases default risk' : 'Reduces default risk'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right ml-4">
+                        <span className={`text-lg font-semibold ${
+                          isRiskIncreasing ? "text-red-600" : "text-green-600"
+                        }`}>
+                          {item.weight > 0 ? '+' : ''}{item.weight.toFixed(3)}
+                        </span>
+                        <p className="text-xs text-muted-foreground">weight</p>
                       </div>
                     </div>
-                    <div className="text-right ml-4">
-                      <span className={`text-lg font-semibold ${
-                        item.impact === "positive" ? "text-red-600" : "text-green-600"
-                      }`}>
-                        {item.weight > 0 ? '+' : ''}{item.weight.toFixed(3)}
-                      </span>
-                      <p className="text-xs text-muted-foreground">weight</p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">

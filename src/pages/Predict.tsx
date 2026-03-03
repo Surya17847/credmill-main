@@ -376,6 +376,16 @@ const Predict = () => {
             variant: "destructive",
           });
         } else {
+          // Update profile with latest score
+          await (supabase as any)
+            .from('profiles')
+            .update({
+              latest_credit_score: data.predicted_credit_risk_score || data.risk_score,
+              latest_risk_level: data.risk_level,
+              total_predictions: (await (supabase as any).from('predictions').select('id', { count: 'exact', head: true }).eq('user_id', user.id)).count || 0,
+            })
+            .eq('user_id', user.id);
+
           toast({
             title: "Saved",
             description: "Prediction saved to database successfully",
@@ -490,6 +500,68 @@ const Predict = () => {
               <p className="text-lg">{prediction.recommendation}</p>
             </Card>
           )}
+
+          {/* Improvement Suggestions */}
+          <Card className="p-6">
+            <h2 className="text-2xl font-bold mb-4">
+              {prediction.riskScore >= 660 ? '✅ Suggestions to Maintain Your Score' : '⚠️ Suggestions to Improve Your Score'}
+            </h2>
+            <div className="space-y-3">
+              {prediction.riskScore >= 780 && (
+                <>
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="font-medium text-green-800">🌟 Excellent Credit Profile!</p>
+                    <p className="text-sm text-green-700">Your credit score is outstanding. Continue maintaining low debt, timely payments, and stable employment.</p>
+                  </div>
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-sm text-green-700">💡 Keep credit utilization below 30% and avoid unnecessary credit inquiries to maintain this excellent standing.</p>
+                  </div>
+                </>
+              )}
+              {prediction.riskScore >= 660 && prediction.riskScore < 780 && (
+                <>
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="font-medium text-blue-800">👍 Good Credit Profile</p>
+                    <p className="text-sm text-blue-700">You're in a solid position. Small improvements can push you into the excellent range.</p>
+                  </div>
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-700">💡 Consider paying down existing debts and building a longer credit history to improve further.</p>
+                  </div>
+                </>
+              )}
+              {prediction.riskScore >= 540 && prediction.riskScore < 660 && (
+                <>
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="font-medium text-yellow-800">⚡ Moderate Risk — Room for Improvement</p>
+                    <p className="text-sm text-yellow-700">Focus on reducing debt-to-income ratio and ensuring all payments are made on time.</p>
+                  </div>
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-700">💡 Avoid taking new loans, increase savings, and consider consolidating high-interest debts.</p>
+                  </div>
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-700">💡 If possible, provide collateral to strengthen your application.</p>
+                  </div>
+                </>
+              )}
+              {prediction.riskScore < 540 && (
+                <>
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="font-medium text-red-800">🚨 High Risk — Immediate Action Needed</p>
+                    <p className="text-sm text-red-700">Your profile indicates significant risk. Focus on these critical areas:</p>
+                  </div>
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-700">💡 Prioritize paying off overdue debts and clearing any delinquent accounts immediately.</p>
+                  </div>
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-700">💡 Set up automatic payments to avoid future late payments. Even 6 months of on-time payments shows improvement.</p>
+                  </div>
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-700">💡 Reduce credit utilization below 50%, increase your income sources, and avoid any new credit inquiries.</p>
+                  </div>
+                </>
+              )}
+            </div>
+          </Card>
 
           <div className="flex justify-center gap-4 flex-wrap">
             <Button
