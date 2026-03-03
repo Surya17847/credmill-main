@@ -11,13 +11,15 @@ import { Step3CreditHistory } from "@/components/predict/Step3CreditHistory";
 import { Step4LoanDetails } from "@/components/predict/Step4LoanDetails";
 import { Step5Behavioral } from "@/components/predict/Step5Behavioral";
 import { SummaryStep } from "@/components/predict/SummaryStep";
-import { Loader2, AlertCircle, Download } from "lucide-react";
+import { Loader2, AlertCircle, Download, CreditCard } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 const API_URL = 'https://be-project-xak5.onrender.com';
 
 const Predict = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiConnected, setApiConnected] = useState<boolean | null>(null);
@@ -97,7 +99,6 @@ const Predict = () => {
     "Behavioral"
   ];
 
-  // Check API connection on mount
   useEffect(() => {
     checkApiConnection();
   }, []);
@@ -106,25 +107,15 @@ const Predict = () => {
     try {
       const response = await fetch(`${API_URL}/health`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
-      
       if (response.ok) {
         const data = await response.json();
         setApiConnected(data.model_loaded);
         if (data.model_loaded) {
-          toast({
-            title: "✅ API Connected",
-            description: "Successfully connected to prediction API",
-          });
+          toast({ title: "✅ API Connected", description: "Successfully connected to prediction API" });
         } else {
-          toast({
-            title: "⚠️ Model Not Loaded",
-            description: "API is running but model is not loaded",
-            variant: "destructive",
-          });
+          toast({ title: "⚠️ Model Not Loaded", description: "API is running but model is not loaded", variant: "destructive" });
         }
       } else {
         setApiConnected(false);
@@ -162,12 +153,7 @@ const Predict = () => {
     };
 
     setDerivedMetrics(newMetrics);
-
-    // Update formData with calculated credit utilization
-    setFormData(prev => ({
-      ...prev,
-      credit_utilization_rate: creditUtilization.toString()
-    }));
+    setFormData(prev => ({ ...prev, credit_utilization_rate: creditUtilization.toString() }));
   }, [formData.annual_income, formData.total_debt, formData.loan_amount_requested, formData.loan_term, formData.total_assets, formData.total_credit_limit]);
 
   const handleChange = (field: string, value: any) => {
@@ -200,13 +186,8 @@ const Predict = () => {
       return false;
     }
 
-    // Additional validation for bankruptcy
     if (step === 3 && formData.bankruptcy_flag && !formData.time_since_bankruptcy) {
-      toast({
-        title: "Missing Information",
-        description: "Please enter time since bankruptcy.",
-        variant: "destructive",
-      });
+      toast({ title: "Missing Information", description: "Please enter time since bankruptcy.", variant: "destructive" });
       return false;
     }
 
@@ -214,29 +195,225 @@ const Predict = () => {
   };
 
   const handleNext = () => {
-    if (validateStep(currentStep)) {
-      setCurrentStep(prev => Math.min(prev + 1, 6));
-    }
+    if (validateStep(currentStep)) setCurrentStep(prev => Math.min(prev + 1, 6));
   };
 
   const handleBack = () => {
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
+  // ─── PDF Download ──────────────────────────────────────────────────────────
+  const handleDownloadPDF = () => {
+    if (!prediction) return;
+
+    const getRiskColor = (score: number) => {
+      if (score >= 780) return '#10b981';
+      if (score >= 660) return '#34d399';
+      if (score >= 540) return '#f59e0b';
+      if (score >= 420) return '#f97316';
+      return '#ef4444';
+    };
+
+    const riskColor = getRiskColor(prediction.riskScore);
+
+    const getSuggestions = (score: number) => {
+      if (score >= 780) return `
+        <li>Excellent credit profile — continue maintaining low debt and timely payments.</li>
+        <li>Keep credit utilization below 30% and avoid unnecessary credit inquiries.</li>
+        <li>Consider diversifying your credit mix to sustain this outstanding standing.</li>`;
+      if (score >= 660) return `
+        <li>Good credit profile — you are in a solid position.</li>
+        <li>Pay down existing debts to push into the excellent range.</li>
+        <li>Build a longer credit history for further improvement.</li>`;
+      if (score >= 540) return `
+        <li>Moderate risk — focus on reducing debt-to-income ratio.</li>
+        <li>Avoid taking new loans and increase savings where possible.</li>
+        <li>Consider consolidating high-interest debts and providing collateral.</li>`;
+      return `
+        <li>High risk — prioritize paying off overdue and delinquent accounts immediately.</li>
+        <li>Set up automatic payments to prevent future late payments.</li>
+        <li>Reduce credit utilization below 50% and avoid new credit inquiries.</li>`;
+    };
+
+    const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CredMill Credit Risk Assessment Report</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f8fafc; color: #1e293b; }
+    .page { max-width: 900px; margin: 0 auto; background: #fff; padding: 48px 56px; }
+    .header { text-align: center; border-bottom: 3px solid #6366f1; padding-bottom: 24px; margin-bottom: 32px; }
+    .header h1 { font-size: 28px; font-weight: 700; color: #4f46e5; letter-spacing: -0.5px; }
+    .header p { color: #64748b; font-size: 13px; margin-top: 6px; }
+    .score-banner { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: #fff; border-radius: 16px; padding: 32px; text-align: center; margin-bottom: 32px; }
+    .score-banner .score-label { font-size: 14px; opacity: 0.85; text-transform: uppercase; letter-spacing: 1px; }
+    .score-banner .score-value { font-size: 72px; font-weight: 800; line-height: 1; margin: 8px 0; }
+    .score-banner .risk-badge { display: inline-block; background: rgba(255,255,255,0.2); border-radius: 999px; padding: 6px 20px; font-size: 16px; font-weight: 600; margin-top: 4px; }
+    .section-title { font-size: 17px; font-weight: 700; color: #1e293b; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 28px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
+    .stat-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; }
+    .stat-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; font-weight: 600; }
+    .stat-card .value { font-size: 22px; font-weight: 700; color: #1e293b; margin-top: 4px; }
+    .stat-card .value.highlight { color: ${riskColor}; }
+    .recommendation-box { background: #f0f9ff; border-left: 4px solid #6366f1; border-radius: 0 12px 12px 0; padding: 20px 24px; margin-bottom: 28px; }
+    .recommendation-box p { color: #1e40af; font-size: 15px; line-height: 1.6; }
+    .suggestions { margin-bottom: 28px; }
+    .suggestions ul { list-style: none; padding: 0; }
+    .suggestions ul li { background: #fafafa; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 16px; margin-bottom: 10px; font-size: 14px; color: #374151; padding-left: 36px; position: relative; }
+    .suggestions ul li::before { content: '💡'; position: absolute; left: 12px; }
+    .derived-metrics { margin-bottom: 28px; }
+    .footer { text-align: center; border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 32px; color: #94a3b8; font-size: 12px; }
+    .generated { color: #64748b; font-size: 12px; margin-top: 4px; }
+    @media print {
+      body { background: #fff; }
+      .page { padding: 32px 40px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <h1>CredMill — Credit Risk Assessment Report</h1>
+    <p class="generated">Generated on ${new Date().toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short' })}</p>
+  </div>
+
+  <div class="score-banner">
+    <div class="score-label">Credit Risk Score</div>
+    <div class="score-value">${prediction.riskScore}</div>
+    <div class="risk-badge">${prediction.riskLevel.replace(/🟢|🟩|🟨|🟧|🔴|🟡|🟠/g, '').trim()}</div>
+  </div>
+
+  <div class="section-title">Key Metrics</div>
+  <div class="grid-3">
+    <div class="stat-card">
+      <div class="label">Credit Risk Score</div>
+      <div class="value highlight">${prediction.riskScore}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Default Probability</div>
+      <div class="value">${(prediction.probabilityOfDefault * 100).toFixed(1)}%</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Risk Level</div>
+      <div class="value">${prediction.riskLevel.replace(/🟢|🟩|🟨|🟧|🔴|🟡|🟠/g, '').trim()}</div>
+    </div>
+  </div>
+
+  <div class="section-title">Applicant Profile</div>
+  <div class="grid-3">
+    <div class="stat-card">
+      <div class="label">Age</div>
+      <div class="value">${formData.age} yrs</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Employment Status</div>
+      <div class="value" style="font-size:15px">${formData.employment_status}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Education Level</div>
+      <div class="value" style="font-size:15px">${formData.education_level}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Annual Income</div>
+      <div class="value">₹${Number(formData.annual_income).toLocaleString('en-IN')}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Total Debt</div>
+      <div class="value">₹${Number(formData.total_debt).toLocaleString('en-IN')}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Credit Score</div>
+      <div class="value">${formData.credit_score}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Loan Requested</div>
+      <div class="value">₹${Number(formData.loan_amount_requested).toLocaleString('en-IN')}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Loan Term</div>
+      <div class="value">${formData.loan_term} months</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Loan Purpose</div>
+      <div class="value" style="font-size:15px">${formData.loan_purpose}</div>
+    </div>
+  </div>
+
+  <div class="section-title">Derived Financial Metrics</div>
+  <div class="grid-3">
+    <div class="stat-card">
+      <div class="label">Debt-to-Income Ratio</div>
+      <div class="value">${derivedMetrics.debt_to_income_ratio.toFixed(3)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Loan-to-Income Ratio</div>
+      <div class="value">${derivedMetrics.loan_to_income_ratio.toFixed(3)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Credit Utilization</div>
+      <div class="value">${(derivedMetrics.credit_utilization_rate * 100).toFixed(1)}%</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Monthly Income</div>
+      <div class="value">₹${Math.round(derivedMetrics.monthly_income).toLocaleString('en-IN')}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Net Worth</div>
+      <div class="value">₹${Math.round(derivedMetrics.net_worth).toLocaleString('en-IN')}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Payment-to-Income</div>
+      <div class="value">${derivedMetrics.payment_to_income_ratio.toFixed(3)}</div>
+    </div>
+  </div>
+
+  ${prediction.recommendation ? `
+  <div class="section-title">Recommendation</div>
+  <div class="recommendation-box">
+    <p>${prediction.recommendation}</p>
+  </div>` : ''}
+
+  <div class="suggestions">
+    <div class="section-title">${prediction.riskScore >= 660 ? 'Suggestions to Maintain Your Score' : 'Suggestions to Improve Your Score'}</div>
+    <ul>${getSuggestions(prediction.riskScore)}</ul>
+  </div>
+
+  <div class="footer">
+    <p>This report was generated by <strong>CredMill Credit Risk Assessment System</strong>.</p>
+    <p style="margin-top:4px">For informational purposes only. Not financial advice.</p>
+  </div>
+</div>
+</body>
+</html>`;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast({ title: "Popup Blocked", description: "Please allow popups for this site to download the report.", variant: "destructive" });
+      return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    // Wait for content to fully render before printing
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+      }, 500);
+    };
+  };
+
   const handleSubmit = async () => {
-    // Check API connection before submitting
     if (apiConnected === false) {
-      toast({
-        title: "API Not Connected",
-        description: "Please ensure Flask API is running on port 10000",
-        variant: "destructive",
-      });
+      toast({ title: "API Not Connected", description: "Please ensure Flask API is running on port 10000", variant: "destructive" });
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // Map form data to API expected format (match exact field names from CSV)
       const apiPayload = {
         Age: Number(formData.age),
         Employment_Status: formData.employment_status,
@@ -247,7 +424,6 @@ const Predict = () => {
         Housing_Status: formData.housing_status,
         Years_at_Residence: Number(formData.years_at_residence),
         Number_of_Dependents: Number(formData.number_of_dependents),
-
         Annual_Income: Number(formData.annual_income),
         Total_Debt: Number(formData.total_debt),
         Debt_to_Income_Ratio: derivedMetrics.debt_to_income_ratio,
@@ -261,7 +437,6 @@ const Predict = () => {
         Checking_Account_Balance: Number(formData.checking_account_balance),
         Total_Assets: Number(formData.total_assets),
         Net_Worth: derivedMetrics.net_worth,
-
         Number_of_Late_Payments: Number(formData.number_of_late_payments),
         Worst_Delinquency_Status: Number(formData.worst_delinquency_status),
         Months_since_Last_Delinquency: Number(formData.months_since_last_delinquency),
@@ -271,18 +446,15 @@ const Predict = () => {
         Bankruptcy_Flag: formData.bankruptcy_flag ? "TRUE" : "FALSE",
         Credit_Mix: formData.credit_mix,
         Bankruptcy_Trigger_Flag: formData.bankruptcy_trigger_flag ? "TRUE" : "FALSE",
-
         Loan_Amount_Requested: Number(formData.loan_amount_requested),
         Loan_Term_Months: Number(formData.loan_term),
         Loan_Purpose: formData.loan_purpose,
         Payment_to_Income_Ratio: derivedMetrics.payment_to_income_ratio,
         Collateral_Type: formData.collateral_type,
         Collateral_Value: Number(formData.collateral_value),
-
         Transaction_Amount: Number(formData.transaction_amount),
         Transaction_Frequency: Number(formData.transaction_frequency),
         Days_since_Last_Transaction: Number(formData.time_since_last_transaction),
-
         Avg_Probability_of_Default: Number(formData.average_pd) / 100,
         Avg_Risk_Weighted_Assets: Number(formData.average_rwa),
         DPD_Trigger_Count: Number(formData.dpd_trigger_count),
@@ -291,27 +463,19 @@ const Predict = () => {
       };
       localStorage.setItem("lastPredictionInput", JSON.stringify(apiPayload));
 
-
       const response = await fetch(`${API_URL}/predict`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(apiPayload),
       });
 
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Prediction API request failed');
-      }
+      if (!response.ok) throw new Error(data.error || 'Prediction API request failed');
 
       console.log('API Response:', data);
 
-      // Get current user for database storage
       const { data: { user } } = await supabase.auth.getUser();
 
-      // Store prediction in database (map to lowercase column names)
       if (user) {
         const { error: dbError } = await (supabase as any)
           .from('predictions')
@@ -370,13 +534,8 @@ const Predict = () => {
 
         if (dbError) {
           console.error('Database insert error:', dbError);
-          toast({
-            title: "Warning",
-            description: "Prediction successful but failed to save to database",
-            variant: "destructive",
-          });
+          toast({ title: "Warning", description: "Prediction successful but failed to save to database", variant: "destructive" });
         } else {
-          // Update profile with latest score
           await (supabase as any)
             .from('profiles')
             .update({
@@ -386,11 +545,10 @@ const Predict = () => {
             })
             .eq('user_id', user.id);
 
-          // Create loan and repayment schedule
           const loanAmount = Number(formData.loan_amount_requested);
           const loanTermMonths = Number(formData.loan_term);
           if (loanAmount > 0 && loanTermMonths > 0) {
-            const annualRate = 12; // 12% default interest
+            const annualRate = 12;
             const monthlyRate = annualRate / 12 / 100;
             const emi = monthlyRate > 0
               ? (loanAmount * monthlyRate * Math.pow(1 + monthlyRate, loanTermMonths)) / (Math.pow(1 + monthlyRate, loanTermMonths) - 1)
@@ -412,7 +570,6 @@ const Predict = () => {
               .single();
 
             if (loanData && !loanError) {
-              // Create repayment schedule
               let remainingPrincipal = loanAmount;
               const repaymentRows = [];
               const startDate = new Date();
@@ -440,14 +597,10 @@ const Predict = () => {
             }
           }
 
-          toast({
-            title: "Saved",
-            description: "Prediction and loan schedule saved to database",
-          });
+          toast({ title: "Saved", description: "Prediction and loan schedule saved to database" });
         }
       }
 
-      // Transform API response to match expected format
       const transformedPrediction = {
         riskScore: data.predicted_credit_risk_score,
         riskLevel: data.risk_level || (
@@ -477,17 +630,10 @@ const Predict = () => {
 
       setPrediction(transformedPrediction);
       setCurrentStep(7);
-      toast({
-        title: "✅ Assessment Complete",
-        description: `Credit Risk Score: ${transformedPrediction.riskScore}`,
-      });
+      toast({ title: "✅ Assessment Complete", description: `Credit Risk Score: ${transformedPrediction.riskScore}` });
     } catch (error: any) {
       console.error('Prediction error:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to generate prediction. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message || "Failed to generate prediction. Please try again.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -495,34 +641,24 @@ const Predict = () => {
 
   const renderStep = () => {
     switch (currentStep) {
-      case 1:
-        return <Step1Personal formData={formData} onChange={handleChange} />;
-      case 2:
-        return <Step2Financial formData={formData} onChange={handleChange} />;
-      case 3:
-        return <Step3CreditHistory formData={formData} onChange={handleChange} />;
-      case 4:
-        return <Step4LoanDetails formData={formData} onChange={handleChange} />;
-      case 5:
-        return <Step5Behavioral formData={formData} onChange={handleChange} />;
-      case 6:
-        return <SummaryStep formData={formData} derivedMetrics={derivedMetrics} />;
-      case 7:
-        return null; // Results view
-      default:
-        return null;
+      case 1: return <Step1Personal formData={formData} onChange={handleChange} />;
+      case 2: return <Step2Financial formData={formData} onChange={handleChange} />;
+      case 3: return <Step3CreditHistory formData={formData} onChange={handleChange} />;
+      case 4: return <Step4LoanDetails formData={formData} onChange={handleChange} />;
+      case 5: return <Step5Behavioral formData={formData} onChange={handleChange} />;
+      case 6: return <SummaryStep formData={formData} derivedMetrics={derivedMetrics} />;
+      case 7: return null;
+      default: return null;
     }
   };
 
+  // ─── Results View ──────────────────────────────────────────────────────────
   if (currentStep === 7 && prediction) {
-    // Results View
     return (
       <div className="container mx-auto py-8 px-4">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Risk Assessment Results</h1>
-          <p className="text-muted-foreground">
-            Based on your comprehensive credit profile
-          </p>
+          <p className="text-muted-foreground">Based on your comprehensive credit profile</p>
         </div>
 
         <div className="space-y-6">
@@ -617,64 +753,19 @@ const Predict = () => {
             </div>
           </Card>
 
+          {/* Action Buttons */}
           <div className="flex justify-center gap-4 flex-wrap">
-            <Button
-              onClick={() => {
-                const printContent = document.getElementById('risk-results-container');
-                if (!printContent) return;
-                const printWindow = window.open('', '_blank');
-                if (!printWindow) return;
-                printWindow.document.write(`
-                  <html><head><title>Credit Risk Assessment Report - CredMill</title>
-                  <style>
-                    body { font-family: system-ui, sans-serif; padding: 40px; color: #1a1a1a; }
-                    h1 { font-size: 28px; margin-bottom: 8px; }
-                    h2 { font-size: 20px; margin-top: 24px; margin-bottom: 12px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; }
-                    .header { text-align: center; margin-bottom: 32px; border-bottom: 3px solid #6366f1; padding-bottom: 16px; }
-                    .header p { color: #666; }
-                    .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin: 16px 0; }
-                    .stat { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; text-align: center; }
-                    .stat .label { font-size: 12px; color: #6b7280; text-transform: uppercase; }
-                    .stat .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
-                    .recommendation { background: #f0f9ff; border-left: 4px solid #6366f1; padding: 16px; border-radius: 0 8px 8px 0; margin-top: 24px; }
-                    .footer { margin-top: 40px; text-align: center; color: #9ca3af; font-size: 12px; border-top: 1px solid #e5e7eb; padding-top: 16px; }
-                  </style></head><body>
-                  <div class="header">
-                    <h1>CredMill - Credit Risk Assessment Report</h1>
-                    <p>Generated on ${new Date().toLocaleString()}</p>
-                  </div>
-                  <div class="grid">
-                    <div class="stat"><div class="label">Credit Risk Score</div><div class="value">${prediction.riskScore}</div></div>
-                    <div class="stat"><div class="label">Default Probability</div><div class="value">${(prediction.probabilityOfDefault * 100).toFixed(1)}%</div></div>
-                    <div class="stat"><div class="label">Risk Level</div><div class="value">${prediction.riskLevel}</div></div>
-                  </div>
-                  <h2>Applicant Summary</h2>
-                  <div class="grid">
-                    <div class="stat"><div class="label">Age</div><div class="value">${formData.age}</div></div>
-                    <div class="stat"><div class="label">Annual Income</div><div class="value">₹${Number(formData.annual_income).toLocaleString()}</div></div>
-                    <div class="stat"><div class="label">Credit Score</div><div class="value">${formData.credit_score}</div></div>
-                    <div class="stat"><div class="label">Total Debt</div><div class="value">₹${Number(formData.total_debt).toLocaleString()}</div></div>
-                    <div class="stat"><div class="label">Loan Requested</div><div class="value">₹${Number(formData.loan_amount_requested).toLocaleString()}</div></div>
-                    <div class="stat"><div class="label">Employment</div><div class="value">${formData.employment_status}</div></div>
-                  </div>
-                  <h2>Derived Metrics</h2>
-                  <div class="grid">
-                    <div class="stat"><div class="label">Debt-to-Income</div><div class="value">${derivedMetrics.debt_to_income_ratio.toFixed(2)}</div></div>
-                    <div class="stat"><div class="label">Loan-to-Income</div><div class="value">${derivedMetrics.loan_to_income_ratio.toFixed(2)}</div></div>
-                    <div class="stat"><div class="label">Net Worth</div><div class="value">₹${derivedMetrics.net_worth.toLocaleString()}</div></div>
-                  </div>
-                  ${prediction.recommendation ? `<div class="recommendation"><h2 style="margin-top:0;border:none;padding:0;">Recommendation</h2><p>${prediction.recommendation}</p></div>` : ''}
-                  <div class="footer">This report was generated by CredMill Credit Risk Assessment System. For informational purposes only.</div>
-                  </body></html>
-                `);
-                printWindow.document.close();
-                printWindow.print();
-              }}
-              size="lg"
-              variant="outline"
-            >
+            <Button onClick={handleDownloadPDF} size="lg" variant="outline">
               <Download className="mr-2 h-4 w-4" />
               Download PDF Report
+            </Button>
+            <Button
+              onClick={() => navigate('/repayments')}
+              size="lg"
+              variant="default"
+            >
+              <CreditCard className="mr-2 h-4 w-4" />
+              View Repayments
             </Button>
             <Button
               onClick={() => {
@@ -682,15 +773,9 @@ const Predict = () => {
                 setPrediction(null);
               }}
               size="lg"
+              variant="outline"
             >
               Start New Assessment
-            </Button>
-            <Button
-              variant="outline"
-              onClick={checkApiConnection}
-              size="lg"
-            >
-              Check API Status
             </Button>
           </div>
         </div>
@@ -698,15 +783,13 @@ const Predict = () => {
     );
   }
 
+  // ─── Multi-step Form ───────────────────────────────────────────────────────
   return (
     <div className="container mx-auto py-8 px-4 max-w-5xl">
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-2">CredMill - Credit Risk Assessment</h1>
-        <p className="text-muted-foreground">
-          Complete the multi-step form for comprehensive credit risk evaluation
-        </p>
-        
-        {/* API Status Indicator */}
+        <p className="text-muted-foreground">Complete the multi-step form for comprehensive credit risk evaluation</p>
+
         {apiConnected === false && (
           <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-red-600" />
@@ -719,7 +802,7 @@ const Predict = () => {
             </Button>
           </div>
         )}
-        
+
         {apiConnected === true && (
           <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
@@ -728,44 +811,21 @@ const Predict = () => {
         )}
       </div>
 
-      <StepIndicator
-        currentStep={currentStep}
-        totalSteps={stepLabels.length}
-        stepLabels={stepLabels}
-      />
+      <StepIndicator currentStep={currentStep} totalSteps={stepLabels.length} stepLabels={stepLabels} />
 
-      <div className="my-8">
-        {renderStep()}
-      </div>
+      <div className="my-8">{renderStep()}</div>
 
       <div className="flex justify-between mt-6">
-        <Button
-          variant="outline"
-          onClick={handleBack}
-          disabled={currentStep === 1}
-        >
+        <Button variant="outline" onClick={handleBack} disabled={currentStep === 1}>
           Back
         </Button>
 
-        {currentStep < 5 && (
-          <Button onClick={handleNext}>
-            Next
-          </Button>
-        )}
-
-        {currentStep === 5 && (
-          <Button onClick={handleNext}>
-            Review Summary
-          </Button>
-        )}
-
+        {currentStep < 5 && <Button onClick={handleNext}>Next</Button>}
+        {currentStep === 5 && <Button onClick={handleNext}>Review Summary</Button>}
         {currentStep === 6 && (
           <Button onClick={handleSubmit} disabled={isSubmitting || apiConnected === false}>
             {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing...
-              </>
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</>
             ) : (
               'Submit for Risk Assessment'
             )}

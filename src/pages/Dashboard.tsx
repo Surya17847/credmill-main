@@ -4,13 +4,15 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link } from "react-router-dom";
-import { TrendingUp, TrendingDown, BarChart3, History, Target, ArrowRight } from "lucide-react";
+import { TrendingUp, TrendingDown, BarChart3, History, Target, ArrowRight, Users, User } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from "recharts";
 
 export default function Dashboard() {
   const [profile, setProfile] = useState<any>(null);
   const [predictions, setPredictions] = useState<any[]>([]);
+  const [batchPredictions, setBatchPredictions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"individual" | "batch">("individual");
 
   useEffect(() => {
     loadData();
@@ -20,13 +22,15 @@ export default function Dashboard() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const [profileRes, predictionsRes] = await Promise.all([
+    const [profileRes, predictionsRes, batchRes] = await Promise.all([
       (supabase as any).from('profiles').select('*').eq('user_id', user.id).single(),
-      (supabase as any).from('predictions').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50),
+      (supabase as any).from('predictions').select('*').eq('user_id', user.id).eq('prediction_type', 'single').order('created_at', { ascending: false }).limit(50),
+      (supabase as any).from('predictions').select('*').eq('user_id', user.id).eq('prediction_type', 'batch').order('created_at', { ascending: false }).limit(50),
     ]);
 
     if (profileRes.data) setProfile(profileRes.data);
     if (predictionsRes.data) setPredictions(predictionsRes.data);
+    if (batchRes.data) setBatchPredictions(batchRes.data);
     setLoading(false);
   };
 
@@ -64,6 +68,20 @@ export default function Dashboard() {
   }, {});
 
   const riskChartData = Object.entries(riskDistribution).map(([name, count]) => ({
+    name,
+    count,
+    fill: name.includes("Very Low") ? "#10b981" : name.includes("Low") ? "#34d399" :
+          name.includes("Medium") ? "#f59e0b" : name.includes("High") && !name.includes("Very") ? "#f97316" : "#ef4444",
+  }));
+
+  const batchRiskDistribution = batchPredictions.reduce((acc: any, p) => {
+    const level = p.risk_level || 'Unknown';
+    const clean = level.replace(/🟢|🟩|🟨|🟧|🔴|🟡|🟠/g, '').trim();
+    acc[clean] = (acc[clean] || 0) + 1;
+    return acc;
+  }, {});
+
+  const batchRiskChartData = Object.entries(batchRiskDistribution).map(([name, count]) => ({
     name,
     count,
     fill: name.includes("Very Low") ? "#10b981" : name.includes("Low") ? "#34d399" :
@@ -137,13 +155,13 @@ export default function Dashboard() {
             <History className="h-8 w-8 text-muted-foreground" />
             <div>
               <p className="text-sm text-muted-foreground">Total Predictions</p>
-              <p className="text-3xl font-bold">{predictions.length}</p>
+              <p className="text-3xl font-bold">{predictions.length + batchPredictions.length}</p>
             </div>
           </div>
         </Card>
       </div>
 
-      {/* Charts */}
+      {/* Charts (Individual only) */}
       {predictions.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <Card className="p-6">
@@ -178,43 +196,147 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Prediction History Table */}
+      {/* Tabs for Individual / Batch Prediction History */}
       <Card className="p-6">
-        <h3 className="text-xl font-semibold mb-4">Prediction History</h3>
-        {predictions.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <p className="mb-4">No predictions yet. Start your first credit risk assessment!</p>
-            <Link to="/predict"><Button>Make a Prediction</Button></Link>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground">Date</th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground">Score</th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground">Risk Level</th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground">Credit Score</th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground">Income</th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground">Loan Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {predictions.map((p) => (
-                  <tr key={p.id} className="border-b hover:bg-muted/50">
-                    <td className="py-3 px-2">{new Date(p.created_at).toLocaleDateString()}</td>
-                    <td className="py-3 px-2 font-semibold">{p.prediction_score ?? '—'}</td>
-                    <td className={`py-3 px-2 font-medium ${getRiskColor(p.risk_level)}`}>
-                      {p.risk_level?.replace(/🟢|🟩|🟨|🟧|🔴|🟡|🟠/g, '').trim() || '—'}
-                    </td>
-                    <td className="py-3 px-2">{p.credit_score ?? '—'}</td>
-                    <td className="py-3 px-2">₹{p.annual_income?.toLocaleString() ?? '—'}</td>
-                    <td className="py-3 px-2">₹{p.loan_amount_requested?.toLocaleString() ?? '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        {/* Tab Headers */}
+        <div className="flex items-center gap-1 mb-6 border-b">
+          <button
+            onClick={() => setActiveTab("individual")}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              activeTab === "individual"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <User className="h-4 w-4" />
+            Individual Predictions
+            <span className="ml-1 bg-muted text-muted-foreground text-xs px-2 py-0.5 rounded-full">
+              {predictions.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab("batch")}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              activeTab === "batch"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Users className="h-4 w-4" />
+            Batch Predictions
+            <span className="ml-1 bg-muted text-muted-foreground text-xs px-2 py-0.5 rounded-full">
+              {batchPredictions.length}
+            </span>
+          </button>
+        </div>
+
+        {/* Individual Tab Content */}
+        {activeTab === "individual" && (
+          <>
+            <h3 className="text-xl font-semibold mb-4">Individual Prediction History</h3>
+            {predictions.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <User className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                <p className="mb-4">No individual predictions yet. Start your first credit risk assessment!</p>
+                <Link to="/predict"><Button>Make a Prediction</Button></Link>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">Date</th>
+                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">Score</th>
+                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">Risk Level</th>
+                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">Credit Score</th>
+                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">Income</th>
+                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">Loan Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {predictions.map((p) => (
+                      <tr key={p.id} className="border-b hover:bg-muted/50">
+                        <td className="py-3 px-2">{new Date(p.created_at).toLocaleDateString()}</td>
+                        <td className="py-3 px-2 font-semibold">{p.prediction_score ?? '—'}</td>
+                        <td className={`py-3 px-2 font-medium ${getRiskColor(p.risk_level)}`}>
+                          {p.risk_level?.replace(/🟢|🟩|🟨|🟧|🔴|🟡|🟠/g, '').trim() || '—'}
+                        </td>
+                        <td className="py-3 px-2">{p.credit_score ?? '—'}</td>
+                        <td className="py-3 px-2">₹{p.annual_income?.toLocaleString() ?? '—'}</td>
+                        <td className="py-3 px-2">₹{p.loan_amount_requested?.toLocaleString() ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Batch Tab Content */}
+        {activeTab === "batch" && (
+          <>
+            <h3 className="text-xl font-semibold mb-4">Batch Prediction History</h3>
+            {batchPredictions.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Users className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                <p className="mb-4">No batch predictions yet. Upload a CSV to run bulk credit risk assessments.</p>
+                <Link to="/predict">
+                  <Button variant="outline">Go to Predict</Button>
+                </Link>
+              </div>
+            ) : (
+              <>
+                {/* Batch Risk Distribution Chart */}
+                {batchRiskChartData.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-base font-medium mb-3 text-muted-foreground">Batch Risk Distribution</h4>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={batchRiskChartData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                        <YAxis allowDecimals={false} />
+                        <Tooltip />
+                        <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                          {batchRiskChartData.map((entry, index) => (
+                            <Cell key={index} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-3 px-2 font-medium text-muted-foreground">Date</th>
+                        <th className="text-left py-3 px-2 font-medium text-muted-foreground">Score</th>
+                        <th className="text-left py-3 px-2 font-medium text-muted-foreground">Risk Level</th>
+                        <th className="text-left py-3 px-2 font-medium text-muted-foreground">Credit Score</th>
+                        <th className="text-left py-3 px-2 font-medium text-muted-foreground">Income</th>
+                        <th className="text-left py-3 px-2 font-medium text-muted-foreground">Loan Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {batchPredictions.map((p) => (
+                        <tr key={p.id} className="border-b hover:bg-muted/50">
+                          <td className="py-3 px-2">{new Date(p.created_at).toLocaleDateString()}</td>
+                          <td className="py-3 px-2 font-semibold">{p.prediction_score ?? '—'}</td>
+                          <td className={`py-3 px-2 font-medium ${getRiskColor(p.risk_level)}`}>
+                            {p.risk_level?.replace(/🟢|🟩|🟨|🟧|🔴|🟡|🟠/g, '').trim() || '—'}
+                          </td>
+                          <td className="py-3 px-2">{p.credit_score ?? '—'}</td>
+                          <td className="py-3 px-2">₹{p.annual_income?.toLocaleString() ?? '—'}</td>
+                          <td className="py-3 px-2">₹{p.loan_amount_requested?.toLocaleString() ?? '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </>
         )}
       </Card>
     </div>
