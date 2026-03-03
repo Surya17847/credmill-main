@@ -21,8 +21,8 @@ const publicNav = [
 
 const authNav = [
   { name: "Home", path: "/" },
-  { name: "Dashboard", path: "/dashboard" },
   { name: "Predict", path: "/predict" },
+  { name: "Repayments", path: "/repayments" },
   { name: "Upload Data", path: "/upload" },
   { name: "Explainability", path: "/explainability" },
   { name: "Model Performance", path: "/evaluation" },
