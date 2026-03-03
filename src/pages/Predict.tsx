@@ -386,9 +386,63 @@ const Predict = () => {
             })
             .eq('user_id', user.id);
 
+          // Create loan and repayment schedule
+          const loanAmount = Number(formData.loan_amount_requested);
+          const loanTermMonths = Number(formData.loan_term);
+          if (loanAmount > 0 && loanTermMonths > 0) {
+            const annualRate = 12; // 12% default interest
+            const monthlyRate = annualRate / 12 / 100;
+            const emi = monthlyRate > 0
+              ? (loanAmount * monthlyRate * Math.pow(1 + monthlyRate, loanTermMonths)) / (Math.pow(1 + monthlyRate, loanTermMonths) - 1)
+              : loanAmount / loanTermMonths;
+            const totalPayable = emi * loanTermMonths;
+
+            const { data: loanData, error: loanError } = await (supabase as any)
+              .from('loans')
+              .insert({
+                user_id: user.id,
+                loan_amount: loanAmount,
+                loan_term_months: loanTermMonths,
+                interest_rate: annualRate,
+                monthly_emi: Math.round(emi),
+                total_payable: Math.round(totalPayable),
+                remaining_principal: loanAmount,
+              })
+              .select()
+              .single();
+
+            if (loanData && !loanError) {
+              // Create repayment schedule
+              let remainingPrincipal = loanAmount;
+              const repaymentRows = [];
+              const startDate = new Date();
+
+              for (let i = 1; i <= loanTermMonths; i++) {
+                const interestPortion = remainingPrincipal * monthlyRate;
+                const principalPortion = emi - interestPortion;
+                remainingPrincipal -= principalPortion;
+
+                const dueDate = new Date(startDate);
+                dueDate.setMonth(dueDate.getMonth() + i);
+
+                repaymentRows.push({
+                  loan_id: loanData.id,
+                  user_id: user.id,
+                  month_number: i,
+                  due_date: dueDate.toISOString().split('T')[0],
+                  emi_amount: Math.round(emi),
+                  principal_portion: Math.round(principalPortion),
+                  interest_portion: Math.round(interestPortion),
+                });
+              }
+
+              await (supabase as any).from('repayments').insert(repaymentRows);
+            }
+          }
+
           toast({
             title: "Saved",
-            description: "Prediction saved to database successfully",
+            description: "Prediction and loan schedule saved to database",
           });
         }
       }

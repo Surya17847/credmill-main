@@ -14,6 +14,62 @@ export type Database = {
   }
   public: {
     Tables: {
+      loans: {
+        Row: {
+          created_at: string
+          credit_score_impact: number
+          id: string
+          interest_rate: number
+          loan_amount: number
+          loan_term_months: number
+          monthly_emi: number
+          prediction_id: string | null
+          remaining_principal: number
+          status: string
+          total_payable: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          credit_score_impact?: number
+          id?: string
+          interest_rate?: number
+          loan_amount: number
+          loan_term_months: number
+          monthly_emi: number
+          prediction_id?: string | null
+          remaining_principal: number
+          status?: string
+          total_payable: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          credit_score_impact?: number
+          id?: string
+          interest_rate?: number
+          loan_amount?: number
+          loan_term_months?: number
+          monthly_emi?: number
+          prediction_id?: string | null
+          remaining_principal?: number
+          status?: string
+          total_payable?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loans_prediction_id_fkey"
+            columns: ["prediction_id"]
+            isOneToOne: false
+            referencedRelation: "predictions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       predictions: {
         Row: {
           age: number | null
@@ -220,6 +276,68 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      repayments: {
+        Row: {
+          amount_paid: number | null
+          created_at: string
+          due_date: string
+          emi_amount: number
+          fine_amount: number | null
+          id: string
+          interest_portion: number
+          loan_id: string
+          month_number: number
+          paid_date: string | null
+          penalty_amount: number | null
+          principal_portion: number
+          score_impact: number | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount_paid?: number | null
+          created_at?: string
+          due_date: string
+          emi_amount: number
+          fine_amount?: number | null
+          id?: string
+          interest_portion: number
+          loan_id: string
+          month_number: number
+          paid_date?: string | null
+          penalty_amount?: number | null
+          principal_portion: number
+          score_impact?: number | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          amount_paid?: number | null
+          created_at?: string
+          due_date?: string
+          emi_amount?: number
+          fine_amount?: number | null
+          id?: string
+          interest_portion?: number
+          loan_id?: string
+          month_number?: number
+          paid_date?: string | null
+          penalty_amount?: number | null
+          principal_portion?: number
+          score_impact?: number | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "repayments_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "loans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

@@ -13,6 +13,7 @@ import Fairness from "./pages/Fairness";
 import Predict from "./pages/Predict";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import Repayments from "./pages/Repayments";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/explainability" element={<ProtectedRoute><Explainability /></ProtectedRoute>} />
             <Route path="/fairness" element={<ProtectedRoute><Fairness /></ProtectedRoute>} />
             <Route path="/predict" element={<ProtectedRoute><Predict /></ProtectedRoute>} />
+            <Route path="/repayments" element={<ProtectedRoute><Repayments /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>

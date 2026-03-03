@@ -19,8 +19,14 @@ const Auth = () => {
   // Redirect if already logged in
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) navigate("/dashboard");
+      if (session) navigate("/");
     });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) navigate("/");
+    });
+
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -48,7 +54,7 @@ const Auth = () => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       toast.success("Logged in successfully!");
-      navigate("/dashboard");
+      navigate("/");
     } catch (error: any) {
       toast.error(error.message || "Failed to sign in");
     } finally {
