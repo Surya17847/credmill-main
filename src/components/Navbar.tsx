@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { User as SupabaseUser } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -96,6 +97,8 @@ export function Navbar() {
             </Link>
           ))}
 
+          <ThemeToggle />
+
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -155,11 +158,21 @@ export function Navbar() {
                   </Button>
                 </Link>
               ))}
+              <div className="flex items-center gap-2">
+                <ThemeToggle />
+                <span className="text-sm text-muted-foreground">Toggle theme</span>
+              </div>
               {user ? (
-                <Button variant="outline" onClick={() => { handleLogout(); setIsOpen(false); }}>
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Logout
-                </Button>
+                <>
+                  <Button variant="outline" onClick={() => { navigate('/dashboard'); setIsOpen(false); }}>
+                    <User className="h-4 w-4 mr-2" />
+                    Dashboard
+                  </Button>
+                  <Button variant="outline" onClick={() => { handleLogout(); setIsOpen(false); }}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
+                  </Button>
+                </>
               ) : (
                 <Link to="/auth" onClick={() => setIsOpen(false)}>
                   <Button className="w-full">Sign Up / Login</Button>

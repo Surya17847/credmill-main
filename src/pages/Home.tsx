@@ -94,11 +94,6 @@ export default function Home() {
                   Try Prediction Demo
                 </Button>
               </Link>
-              <Link to="/upload">
-                <Button size="lg" variant="outline" className="border-primary-foreground/20 bg-primary-foreground/10 backdrop-blur-sm hover:bg-primary-foreground/20 text-primary-foreground font-semibold">
-                  Upload Your Data
-                </Button>
-              </Link>
             </div>
           </div>
         </div>
@@ -189,11 +184,6 @@ export default function Home() {
               <Link to="/predict">
                 <Button size="lg" variant="secondary" className="font-semibold">
                   Get Started
-                </Button>
-              </Link>
-              <Link to="/evaluation">
-                <Button size="lg" variant="outline" className="border-primary-foreground/20 bg-primary-foreground/10 backdrop-blur-sm hover:bg-primary-foreground/20 text-primary-foreground font-semibold">
-                  View Demo Results
                 </Button>
               </Link>
             </div>

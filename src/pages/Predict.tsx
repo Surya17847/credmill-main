@@ -656,7 +656,7 @@ const Predict = () => {
   if (currentStep === 7 && prediction) {
     return (
       <div className="container mx-auto py-8 px-4">
-        <div className="mb-8">
+        <div className="mb-8" ref={(el) => { if (el) window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
           <h1 className="text-4xl font-bold mb-2">Risk Assessment Results</h1>
           <p className="text-muted-foreground">Based on your comprehensive credit profile</p>
         </div>
