@@ -13,6 +13,7 @@ const handleCollateralChange = (value: string, onChange: (field: string, value: 
   onChange('collateral_type', value);
   if (value === 'None') {
     onChange('collateral_value', '0');
+    onChange('transaction_amount', '0');
   }
 };
 
