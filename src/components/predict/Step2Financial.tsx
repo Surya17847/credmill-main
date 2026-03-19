@@ -55,7 +55,7 @@ export const Step2Financial = ({ formData, onChange }: Step2FinancialProps) => {
         </div>
 
         <div>
-          <Label htmlFor="credit_score">Credit Score (300-900) *</Label>
+          <Label htmlFor="credit_score">Credit Score *</Label>
           <Input
             id="credit_score"
             type="number"
@@ -65,6 +65,7 @@ export const Step2Financial = ({ formData, onChange }: Step2FinancialProps) => {
             min="300"
             max="900"
           />
+          <p className="text-xs text-muted-foreground mt-1">Value between 300–900</p>
         </div>
 
         <div>
@@ -166,7 +167,19 @@ export const Step2Financial = ({ formData, onChange }: Step2FinancialProps) => {
             disabled
             className="bg-muted"
           />
-          <p className="text-xs text-muted-foreground mt-1">Auto-calculated from debt and credit limit</p>
+          <p className="text-xs text-muted-foreground mt-1">Auto-calculated: Used credit ÷ total credit (0–1)</p>
+        </div>
+
+        <div>
+          <Label htmlFor="debt_to_income_display">Debt-to-Income Ratio</Label>
+          <Input
+            id="debt_to_income_display"
+            type="text"
+            value={formData.annual_income && formData.total_debt ? (Number(formData.total_debt) / Number(formData.annual_income)).toFixed(3) : '—'}
+            disabled
+            className="bg-muted"
+          />
+          <p className="text-xs text-muted-foreground mt-1">Auto-calculated: Total Debt ÷ Annual Income</p>
         </div>
       </div>
     </Card>

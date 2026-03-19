@@ -87,13 +87,18 @@ export const Step1Personal = ({ formData, onChange }: Step1PersonalProps) => {
         </div>
 
         <div>
-          <Label htmlFor="city_region">City/Region of Residence *</Label>
-          <Input
-            id="city_region"
-            value={formData.city_region || ''}
-            onChange={(e) => onChange('city_region', e.target.value)}
-            required
-          />
+          <Label htmlFor="city_region">City/Region *</Label>
+          <Select value={formData.city_region} onValueChange={(v) => onChange('city_region', v)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select region" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="North">North</SelectItem>
+              <SelectItem value="South">South</SelectItem>
+              <SelectItem value="East">East</SelectItem>
+              <SelectItem value="West">West</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
