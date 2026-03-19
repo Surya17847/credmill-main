@@ -21,14 +21,14 @@ export const Step5Behavioral = ({ formData, onChange }: Step5BehavioralProps) =>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <Label htmlFor="average_pd" className="flex items-center gap-2">
-            Average Probability of Default - Last 6 Months (%)
+            Average Probability of Default (%)
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
                   <HelpCircle className="w-4 h-4 text-muted-foreground" />
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Historical average likelihood of default</p>
+                  <p>Historical average likelihood of default over last 6 months</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -38,48 +38,23 @@ export const Step5Behavioral = ({ formData, onChange }: Step5BehavioralProps) =>
             type="number"
             value={formData.average_pd || ''}
             onChange={(e) => onChange('average_pd', e.target.value)}
-            
             min="0"
             max="100"
             step="0.01"
           />
-        </div>
-
-        <div>
-          <Label htmlFor="average_lgd" className="flex items-center gap-2">
-            Average Loss Given Default - Last 6 Months (%)
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger>
-                  <HelpCircle className="w-4 h-4 text-muted-foreground" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Average percentage of loss if default occurs</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </Label>
-          <Input
-            id="average_lgd"
-            type="number"
-            value={formData.average_lgd || ''}
-            onChange={(e) => onChange('average_lgd', e.target.value)}
-            min="0"
-            max="100"
-            step="0.01"
-          />
+          <p className="text-xs text-muted-foreground mt-1">Probability of loan default predicted by ML model (0–100%)</p>
         </div>
 
         <div>
           <Label htmlFor="average_rwa" className="flex items-center gap-2">
-            Average Risk-Weighted Assets - Last 6 Months (₹)
+            Average Risk-Weighted Assets (₹)
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
                   <HelpCircle className="w-4 h-4 text-muted-foreground" />
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Assets weighted by their risk levels</p>
+                  <p>Assets weighted by their risk levels over last 6 months</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

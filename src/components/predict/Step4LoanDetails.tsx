@@ -89,6 +89,8 @@ export const Step4LoanDetails = ({ formData, onChange }: Step4LoanDetailsProps) 
             onChange={(e) => onChange('collateral_value', e.target.value)}
             required
             min="0"
+            disabled={formData.collateral_type === 'None'}
+            className={formData.collateral_type === 'None' ? 'bg-muted' : ''}
           />
         </div>
 
@@ -101,6 +103,8 @@ export const Step4LoanDetails = ({ formData, onChange }: Step4LoanDetailsProps) 
             onChange={(e) => onChange('transaction_amount', e.target.value)}
             required
             min="0"
+            disabled={formData.collateral_type === 'None'}
+            className={formData.collateral_type === 'None' ? 'bg-muted' : ''}
           />
         </div>
 
@@ -114,6 +118,7 @@ export const Step4LoanDetails = ({ formData, onChange }: Step4LoanDetailsProps) 
             required
             min="0"
           />
+          <p className="text-xs text-muted-foreground mt-1">Number of transactions per month</p>
         </div>
 
         <div>

@@ -20,7 +20,7 @@ export const Step3CreditHistory = ({ formData, onChange }: Step3CreditHistoryPro
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <Label htmlFor="number_of_late_payments">Number of Late Payments (Last 24 Months) *</Label>
+          <Label htmlFor="number_of_late_payments">Number of Late Payments *</Label>
           <Input
             id="number_of_late_payments"
             type="number"
@@ -29,6 +29,7 @@ export const Step3CreditHistory = ({ formData, onChange }: Step3CreditHistoryPro
             required
             min="0"
           />
+          <p className="text-xs text-muted-foreground mt-1">In last 24 months</p>
         </div>
 
         <div>
@@ -43,7 +44,6 @@ export const Step3CreditHistory = ({ formData, onChange }: Step3CreditHistoryPro
             step={1}
           />
         </div>
-
 
         <div>
           <Label htmlFor="months_since_last_delinquency">Months Since Last Delinquency *</Label>
@@ -111,10 +111,9 @@ export const Step3CreditHistory = ({ formData, onChange }: Step3CreditHistoryPro
               <SelectValue placeholder="Select credit mix" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Poor">Poor</SelectItem>
-              <SelectItem value="Fair">Fair</SelectItem>
-              <SelectItem value="Good">Good</SelectItem>
-              <SelectItem value="Excellent">Excellent</SelectItem>
+              <SelectItem value="Mortgage">Mortgage</SelectItem>
+              <SelectItem value="Revolving">Revolving</SelectItem>
+              <SelectItem value="Installment">Installment</SelectItem>
             </SelectContent>
           </Select>
         </div>

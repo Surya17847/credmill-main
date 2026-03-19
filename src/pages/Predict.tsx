@@ -23,6 +23,7 @@ const Predict = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiConnected, setApiConnected] = useState<boolean | null>(null);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   
   const [formData, setFormData] = useState({
     // Step 1: Personal & Residential
@@ -73,7 +74,6 @@ const Predict = () => {
 
     // Step 5: Behavioral
     average_pd: '',
-    average_lgd: '',
     average_rwa: '',
     dpd_trigger_count: '',
     cash_flow_volatility: '',
@@ -91,13 +91,56 @@ const Predict = () => {
 
   const [prediction, setPrediction] = useState<any>(null);
 
-  const stepLabels = [
-    "Personal",
-    "Financial",
-    "Credit",
-    "Loan",
-    "Behavioral"
-  ];
+  const stepLabels = ["Personal", "Financial", "Credit", "Loan", "Behavioral"];
+
+  // Auto-fill from user history
+  useEffect(() => {
+    const loadUserHistory = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // Get latest prediction
+        const { data: latestPred } = await (supabase as any)
+          .from('predictions')
+          .select('credit_score, number_of_late_payments, worst_delinquency_status, months_since_last_delinquency, number_of_credit_inquiries, number_of_derogatory_records, credit_mix, bankruptcy_flag, credit_history_length, number_of_open_credit_lines, dpd_trigger_count, avg_probability_of_default')
+          .eq('user_id', user.id)
+          .eq('prediction_type', 'single')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        // Get latest profile score (may be updated by repayments)
+        const { data: profile } = await (supabase as any)
+          .from('profiles')
+          .select('latest_credit_score')
+          .eq('user_id', user.id)
+          .single();
+
+        if (latestPred || profile) {
+          setFormData(prev => ({
+            ...prev,
+            ...(profile?.latest_credit_score ? { credit_score: String(Math.round(profile.latest_credit_score)) } : latestPred?.credit_score ? { credit_score: String(latestPred.credit_score) } : {}),
+            ...(latestPred?.number_of_late_payments != null ? { number_of_late_payments: String(latestPred.number_of_late_payments) } : {}),
+            ...(latestPred?.worst_delinquency_status != null ? { worst_delinquency_status: latestPred.worst_delinquency_status } : {}),
+            ...(latestPred?.months_since_last_delinquency != null ? { months_since_last_delinquency: String(latestPred.months_since_last_delinquency) } : {}),
+            ...(latestPred?.number_of_credit_inquiries != null ? { number_of_credit_inquiries: String(latestPred.number_of_credit_inquiries) } : {}),
+            ...(latestPred?.number_of_derogatory_records != null ? { number_of_derogatory_records: String(latestPred.number_of_derogatory_records) } : {}),
+            ...(latestPred?.credit_mix ? { credit_mix: latestPred.credit_mix } : {}),
+            ...(latestPred?.bankruptcy_flag != null ? { bankruptcy_flag: latestPred.bankruptcy_flag } : {}),
+            ...(latestPred?.credit_history_length != null ? { credit_history_length: String(latestPred.credit_history_length) } : {}),
+            ...(latestPred?.number_of_open_credit_lines != null ? { number_of_open_credit_lines: String(latestPred.number_of_open_credit_lines) } : {}),
+            ...(latestPred?.dpd_trigger_count != null ? { dpd_trigger_count: String(latestPred.dpd_trigger_count) } : {}),
+            ...(latestPred?.avg_probability_of_default != null ? { average_pd: String((latestPred.avg_probability_of_default * 100).toFixed(2)) } : {}),
+          }));
+          setHistoryLoaded(true);
+        }
+      } catch (err) {
+        console.error('Error loading user history:', err);
+      }
+    };
+    loadUserHistory();
+  }, []);
 
   useEffect(() => {
     checkApiConnection();
@@ -105,10 +148,7 @@ const Predict = () => {
 
   const checkApiConnection = async () => {
     try {
-      const response = await fetch(`${API_URL}/health`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const response = await fetch(`${API_URL}/health`, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
       if (response.ok) {
         const data = await response.json();
         setApiConnected(data.model_loaded);
@@ -123,11 +163,7 @@ const Predict = () => {
     } catch (error) {
       console.error('API connection error:', error);
       setApiConnected(false);
-      toast({
-        title: "❌ API Connection Failed",
-        description: "Cannot connect to Flask API. Make sure it's running on port 10000.",
-        variant: "destructive",
-      });
+      toast({ title: "❌ API Connection Failed", description: "Cannot connect to Flask API.", variant: "destructive" });
     }
   };
 
@@ -162,7 +198,7 @@ const Predict = () => {
 
   const validateStep = (step: number): boolean => {
     const requiredFields: { [key: number]: string[] } = {
-      1: ['age', 'employment_status', 'employment_duration', 'industry_sector', 'education_level', 'marital_status', 'housing_status', 'years_at_residence', 'number_of_dependents'],
+      1: ['age', 'employment_status', 'employment_duration', 'industry_sector', 'education_level', 'marital_status', 'housing_status', 'years_at_residence', 'number_of_dependents', 'city_region'],
       2: ['annual_income', 'total_debt', 'credit_score', 'credit_history_length', 'number_of_existing_loans',
         'total_credit_limit', 'savings_account_balance', 'checking_account_balance', 'total_assets', 'number_of_open_credit_lines'],
       3: ['number_of_late_payments', 'worst_delinquency_status', 'months_since_last_delinquency',
@@ -178,11 +214,7 @@ const Predict = () => {
     });
 
     if (missingFields.length > 0) {
-      toast({
-        title: "Missing Fields",
-        description: `Please fill in all required fields: ${missingFields.join(', ')}`,
-        variant: "destructive",
-      });
+      toast({ title: "Missing Fields", description: `Please fill in all required fields: ${missingFields.join(', ')}`, variant: "destructive" });
       return false;
     }
 
@@ -202,12 +234,19 @@ const Predict = () => {
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
-  // ─── PDF Download ──────────────────────────────────────────────────────────
+  const getRiskLevelFromScore = (score: number) => {
+    if (score >= 760) return '🟢 Very Low Risk';
+    if (score >= 660) return '🟩 Low Risk';
+    if (score >= 540) return '🟨 Medium Risk';
+    if (score >= 420) return '🟧 High Risk';
+    return '🔴 Very High Risk';
+  };
+
   const handleDownloadPDF = () => {
     if (!prediction) return;
 
     const getRiskColor = (score: number) => {
-      if (score >= 780) return '#10b981';
+      if (score >= 760) return '#10b981';
       if (score >= 660) return '#34d399';
       if (score >= 540) return '#f59e0b';
       if (score >= 420) return '#f97316';
@@ -217,23 +256,21 @@ const Predict = () => {
     const riskColor = getRiskColor(prediction.riskScore);
 
     const getSuggestions = (score: number) => {
-      if (score >= 780) return `
+      if (score >= 760) return `
         <li>Excellent credit profile — continue maintaining low debt and timely payments.</li>
-        <li>Keep credit utilization below 30% and avoid unnecessary credit inquiries.</li>
-        <li>Consider diversifying your credit mix to sustain this outstanding standing.</li>`;
+        <li>Keep credit utilization below 30% and avoid unnecessary credit inquiries.</li>`;
       if (score >= 660) return `
         <li>Good credit profile — you are in a solid position.</li>
-        <li>Pay down existing debts to push into the excellent range.</li>
-        <li>Build a longer credit history for further improvement.</li>`;
+        <li>Pay down existing debts to push into the excellent range.</li>`;
       if (score >= 540) return `
         <li>Moderate risk — focus on reducing debt-to-income ratio.</li>
-        <li>Avoid taking new loans and increase savings where possible.</li>
-        <li>Consider consolidating high-interest debts and providing collateral.</li>`;
+        <li>Avoid taking new loans and increase savings where possible.</li>`;
       return `
         <li>High risk — prioritize paying off overdue and delinquent accounts immediately.</li>
-        <li>Set up automatic payments to prevent future late payments.</li>
-        <li>Reduce credit utilization below 50% and avoid new credit inquiries.</li>`;
+        <li>Set up automatic payments to prevent future late payments.</li>`;
     };
+
+    const displayRiskLevel = getRiskLevelFromScore(prediction.riskScore).replace(/🟢|🟩|🟨|🟧|🔴/g, '').trim();
 
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -245,7 +282,7 @@ const Predict = () => {
     body { font-family: 'Segoe UI', Arial, sans-serif; background: #f8fafc; color: #1e293b; }
     .page { max-width: 900px; margin: 0 auto; background: #fff; padding: 48px 56px; }
     .header { text-align: center; border-bottom: 3px solid #6366f1; padding-bottom: 24px; margin-bottom: 32px; }
-    .header h1 { font-size: 28px; font-weight: 700; color: #4f46e5; letter-spacing: -0.5px; }
+    .header h1 { font-size: 28px; font-weight: 700; color: #4f46e5; }
     .header p { color: #64748b; font-size: 13px; margin-top: 6px; }
     .score-banner { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: #fff; border-radius: 16px; padding: 32px; text-align: center; margin-bottom: 32px; }
     .score-banner .score-label { font-size: 14px; opacity: 0.85; text-transform: uppercase; letter-spacing: 1px; }
@@ -253,137 +290,61 @@ const Predict = () => {
     .score-banner .risk-badge { display: inline-block; background: rgba(255,255,255,0.2); border-radius: 999px; padding: 6px 20px; font-size: 16px; font-weight: 600; margin-top: 4px; }
     .section-title { font-size: 17px; font-weight: 700; color: #1e293b; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; }
     .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 28px; }
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
     .stat-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; }
     .stat-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; font-weight: 600; }
     .stat-card .value { font-size: 22px; font-weight: 700; color: #1e293b; margin-top: 4px; }
     .stat-card .value.highlight { color: ${riskColor}; }
     .recommendation-box { background: #f0f9ff; border-left: 4px solid #6366f1; border-radius: 0 12px 12px 0; padding: 20px 24px; margin-bottom: 28px; }
     .recommendation-box p { color: #1e40af; font-size: 15px; line-height: 1.6; }
-    .suggestions { margin-bottom: 28px; }
     .suggestions ul { list-style: none; padding: 0; }
     .suggestions ul li { background: #fafafa; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 16px; margin-bottom: 10px; font-size: 14px; color: #374151; padding-left: 36px; position: relative; }
     .suggestions ul li::before { content: '💡'; position: absolute; left: 12px; }
-    .derived-metrics { margin-bottom: 28px; }
     .footer { text-align: center; border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 32px; color: #94a3b8; font-size: 12px; }
-    .generated { color: #64748b; font-size: 12px; margin-top: 4px; }
-    @media print {
-      body { background: #fff; }
-      .page { padding: 32px 40px; }
-    }
+    @media print { body { background: #fff; } .page { padding: 32px 40px; } }
   </style>
 </head>
 <body>
 <div class="page">
   <div class="header">
     <h1>CredMill — Credit Risk Assessment Report</h1>
-    <p class="generated">Generated on ${new Date().toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short' })}</p>
+    <p>Generated on ${new Date().toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short' })}</p>
   </div>
-
   <div class="score-banner">
     <div class="score-label">Credit Risk Score</div>
     <div class="score-value">${prediction.riskScore}</div>
-    <div class="risk-badge">${prediction.riskLevel.replace(/🟢|🟩|🟨|🟧|🔴|🟡|🟠/g, '').trim()}</div>
+    <div class="risk-badge">${displayRiskLevel}</div>
   </div>
-
   <div class="section-title">Key Metrics</div>
   <div class="grid-3">
-    <div class="stat-card">
-      <div class="label">Credit Risk Score</div>
-      <div class="value highlight">${prediction.riskScore}</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Default Probability</div>
-      <div class="value">${(prediction.probabilityOfDefault * 100).toFixed(1)}%</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Risk Level</div>
-      <div class="value">${prediction.riskLevel.replace(/🟢|🟩|🟨|🟧|🔴|🟡|🟠/g, '').trim()}</div>
-    </div>
+    <div class="stat-card"><div class="label">Credit Risk Score</div><div class="value highlight">${prediction.riskScore}</div></div>
+    <div class="stat-card"><div class="label">Default Probability</div><div class="value">${(prediction.probabilityOfDefault * 100).toFixed(1)}%</div></div>
+    <div class="stat-card"><div class="label">Risk Level</div><div class="value">${displayRiskLevel}</div></div>
   </div>
-
   <div class="section-title">Applicant Profile</div>
   <div class="grid-3">
-    <div class="stat-card">
-      <div class="label">Age</div>
-      <div class="value">${formData.age} yrs</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Employment Status</div>
-      <div class="value" style="font-size:15px">${formData.employment_status}</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Education Level</div>
-      <div class="value" style="font-size:15px">${formData.education_level}</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Annual Income</div>
-      <div class="value">₹${Number(formData.annual_income).toLocaleString('en-IN')}</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Total Debt</div>
-      <div class="value">₹${Number(formData.total_debt).toLocaleString('en-IN')}</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Credit Score</div>
-      <div class="value">${formData.credit_score}</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Loan Requested</div>
-      <div class="value">₹${Number(formData.loan_amount_requested).toLocaleString('en-IN')}</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Loan Term</div>
-      <div class="value">${formData.loan_term} months</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Loan Purpose</div>
-      <div class="value" style="font-size:15px">${formData.loan_purpose}</div>
-    </div>
+    <div class="stat-card"><div class="label">Age</div><div class="value">${formData.age} yrs</div></div>
+    <div class="stat-card"><div class="label">Employment</div><div class="value" style="font-size:15px">${formData.employment_status}</div></div>
+    <div class="stat-card"><div class="label">Annual Income</div><div class="value">₹${Number(formData.annual_income).toLocaleString('en-IN')}</div></div>
+    <div class="stat-card"><div class="label">Credit Score</div><div class="value">${formData.credit_score}</div></div>
+    <div class="stat-card"><div class="label">Loan Requested</div><div class="value">₹${Number(formData.loan_amount_requested).toLocaleString('en-IN')}</div></div>
+    <div class="stat-card"><div class="label">Loan Term</div><div class="value">${formData.loan_term} months</div></div>
   </div>
-
   <div class="section-title">Derived Financial Metrics</div>
   <div class="grid-3">
-    <div class="stat-card">
-      <div class="label">Debt-to-Income Ratio</div>
-      <div class="value">${derivedMetrics.debt_to_income_ratio.toFixed(3)}</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Loan-to-Income Ratio</div>
-      <div class="value">${derivedMetrics.loan_to_income_ratio.toFixed(3)}</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Credit Utilization</div>
-      <div class="value">${(derivedMetrics.credit_utilization_rate * 100).toFixed(1)}%</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Monthly Income</div>
-      <div class="value">₹${Math.round(derivedMetrics.monthly_income).toLocaleString('en-IN')}</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Net Worth</div>
-      <div class="value">₹${Math.round(derivedMetrics.net_worth).toLocaleString('en-IN')}</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Payment-to-Income</div>
-      <div class="value">${derivedMetrics.payment_to_income_ratio.toFixed(3)}</div>
-    </div>
+    <div class="stat-card"><div class="label">Debt-to-Income</div><div class="value">${derivedMetrics.debt_to_income_ratio.toFixed(3)}</div></div>
+    <div class="stat-card"><div class="label">Loan-to-Income</div><div class="value">${derivedMetrics.loan_to_income_ratio.toFixed(3)}</div></div>
+    <div class="stat-card"><div class="label">Credit Utilization</div><div class="value">${(derivedMetrics.credit_utilization_rate * 100).toFixed(1)}%</div></div>
+    <div class="stat-card"><div class="label">Monthly Income</div><div class="value">₹${Math.round(derivedMetrics.monthly_income).toLocaleString('en-IN')}</div></div>
+    <div class="stat-card"><div class="label">Net Worth</div><div class="value">₹${Math.round(derivedMetrics.net_worth).toLocaleString('en-IN')}</div></div>
+    <div class="stat-card"><div class="label">Payment-to-Income</div><div class="value">${derivedMetrics.payment_to_income_ratio.toFixed(3)}</div></div>
   </div>
-
-  ${prediction.recommendation ? `
-  <div class="section-title">Recommendation</div>
-  <div class="recommendation-box">
-    <p>${prediction.recommendation}</p>
-  </div>` : ''}
-
+  ${prediction.recommendation ? `<div class="section-title">Recommendation</div><div class="recommendation-box"><p>${prediction.recommendation}</p></div>` : ''}
   <div class="suggestions">
     <div class="section-title">${prediction.riskScore >= 660 ? 'Suggestions to Maintain Your Score' : 'Suggestions to Improve Your Score'}</div>
     <ul>${getSuggestions(prediction.riskScore)}</ul>
   </div>
-
   <div class="footer">
-    <p>This report was generated by <strong>CredMill Credit Risk Assessment System</strong>.</p>
-    <p style="margin-top:4px">For informational purposes only. Not financial advice.</p>
+    <p>Generated by <strong>CredMill Credit Risk Assessment System</strong>. For informational purposes only.</p>
   </div>
 </div>
 </body>
@@ -391,24 +352,18 @@ const Predict = () => {
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      toast({ title: "Popup Blocked", description: "Please allow popups for this site to download the report.", variant: "destructive" });
+      toast({ title: "Popup Blocked", description: "Please allow popups to download the report.", variant: "destructive" });
       return;
     }
     printWindow.document.open();
     printWindow.document.write(htmlContent);
     printWindow.document.close();
-    // Wait for content to fully render before printing
-    printWindow.onload = () => {
-      setTimeout(() => {
-        printWindow.focus();
-        printWindow.print();
-      }, 500);
-    };
+    printWindow.onload = () => { setTimeout(() => { printWindow.focus(); printWindow.print(); }, 500); };
   };
 
   const handleSubmit = async () => {
     if (apiConnected === false) {
-      toast({ title: "API Not Connected", description: "Please ensure Flask API is running on port 10000", variant: "destructive" });
+      toast({ title: "API Not Connected", description: "Please ensure Flask API is running", variant: "destructive" });
       return;
     }
 
@@ -460,6 +415,7 @@ const Predict = () => {
         DPD_Trigger_Count: Number(formData.dpd_trigger_count),
         Cash_Flow_Volatility: Number(formData.cash_flow_volatility),
         Seasonal_Spending_Pattern: formData.seasonal_spending_pattern,
+        City_Region: formData.city_region,
       };
       localStorage.setItem("lastPredictionInput", JSON.stringify(apiPayload));
 
@@ -601,29 +557,22 @@ const Predict = () => {
         }
       }
 
+      const riskScore = data.predicted_credit_risk_score;
       const transformedPrediction = {
-        riskScore: data.predicted_credit_risk_score,
-        riskLevel: data.risk_level || (
-          data.predicted_credit_risk_score >= 780 ? '🟢 Very Low Risk' :
-          data.predicted_credit_risk_score >= 660 ? '🟢 Low Risk' :
-          data.predicted_credit_risk_score >= 540 ? '🟡 Medium Risk' :
-          data.predicted_credit_risk_score >= 420 ? '🟠 High Risk' : '🔴 Very High Risk'
-        ),
+        riskScore,
+        riskLevel: getRiskLevelFromScore(riskScore),
         probabilityOfDefault: data.probability_of_default || (
-          data.predicted_credit_risk_score >= 780 ? 0.02 :
-          data.predicted_credit_risk_score >= 660 ? 0.05 :
-          data.predicted_credit_risk_score >= 540 ? 0.15 :
-          data.predicted_credit_risk_score >= 420 ? 0.30 : 0.50
+          riskScore >= 760 ? 0.02 : riskScore >= 660 ? 0.05 : riskScore >= 540 ? 0.15 : riskScore >= 420 ? 0.30 : 0.50
         ),
         modelVersion: 'XGBoost v2.0',
         totalFeaturesUsed: data.total_features_used,
-        recommendation: data.predicted_credit_risk_score >= 780 ?
+        recommendation: riskScore >= 760 ?
           'Excellent credit profile. Loan approval recommended with the most favorable terms.' :
-          data.predicted_credit_risk_score >= 660 ?
+          riskScore >= 660 ?
             'Good credit profile. Loan approval recommended with standard terms.' :
-            data.predicted_credit_risk_score >= 540 ?
+            riskScore >= 540 ?
               'Moderate credit profile. Loan may be approved with higher interest rates or additional requirements.' :
-              data.predicted_credit_risk_score >= 420 ?
+              riskScore >= 420 ?
                 'High risk profile. Additional collateral or co-signer may be required.' :
                 'Very high risk. Consider debt reduction and timely payments before reapplying.',
       };
@@ -633,7 +582,7 @@ const Predict = () => {
       toast({ title: "✅ Assessment Complete", description: `Credit Risk Score: ${transformedPrediction.riskScore}` });
     } catch (error: any) {
       console.error('Prediction error:', error);
-      toast({ title: "Error", description: error.message || "Failed to generate prediction. Please try again.", variant: "destructive" });
+      toast({ title: "Error", description: error.message || "Failed to generate prediction.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -676,6 +625,7 @@ const Predict = () => {
               <div className="p-4 bg-muted/50 rounded-lg">
                 <p className="text-sm text-muted-foreground">Default Probability</p>
                 <p className="text-2xl font-bold">{(prediction.probabilityOfDefault * 100).toFixed(1)}%</p>
+                <p className="text-xs text-muted-foreground mt-1">Probability of loan default predicted by ML model</p>
               </div>
               <div className="p-4 bg-muted/50 rounded-lg">
                 <p className="text-sm text-muted-foreground">Risk Level</p>
@@ -697,56 +647,58 @@ const Predict = () => {
               {prediction.riskScore >= 660 ? '✅ Suggestions to Maintain Your Score' : '⚠️ Suggestions to Improve Your Score'}
             </h2>
             <div className="space-y-3">
-              {prediction.riskScore >= 780 && (
+              {prediction.riskScore >= 760 && (
                 <>
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <p className="font-medium text-green-800">🌟 Excellent Credit Profile!</p>
-                    <p className="text-sm text-green-700">Your credit score is outstanding. Continue maintaining low debt, timely payments, and stable employment.</p>
+                  <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
+                    <p className="font-medium text-green-800 dark:text-green-300">🌟 Excellent Credit Profile!</p>
+                    <p className="text-sm text-green-700 dark:text-green-400">Your credit score is outstanding. Continue maintaining low debt, timely payments, and stable employment.</p>
                   </div>
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <p className="text-sm text-green-700">💡 Keep credit utilization below 30% and avoid unnecessary credit inquiries to maintain this excellent standing.</p>
+                  <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
+                    <p className="text-sm text-green-700 dark:text-green-400">💡 Keep credit utilization below 30% and avoid unnecessary credit inquiries.</p>
                   </div>
                 </>
               )}
-              {prediction.riskScore >= 660 && prediction.riskScore < 780 && (
+              {prediction.riskScore >= 660 && prediction.riskScore < 760 && (
                 <>
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="font-medium text-blue-800">👍 Good Credit Profile</p>
-                    <p className="text-sm text-blue-700">You're in a solid position. Small improvements can push you into the excellent range.</p>
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <p className="font-medium text-blue-800 dark:text-blue-300">👍 Good Credit Profile</p>
+                    <p className="text-sm text-blue-700 dark:text-blue-400">You're in a solid position. Small improvements can push you into the excellent range.</p>
                   </div>
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm text-blue-700">💡 Consider paying down existing debts and building a longer credit history to improve further.</p>
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <p className="text-sm text-blue-700 dark:text-blue-400">💡 Consider paying down existing debts and building a longer credit history.</p>
                   </div>
                 </>
               )}
               {prediction.riskScore >= 540 && prediction.riskScore < 660 && (
                 <>
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="font-medium text-yellow-800">⚡ Moderate Risk — Room for Improvement</p>
-                    <p className="text-sm text-yellow-700">Focus on reducing debt-to-income ratio and ensuring all payments are made on time.</p>
+                  <div className="p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <p className="font-medium text-yellow-800 dark:text-yellow-300">⚡ Medium Risk — Room for Improvement</p>
+                    <p className="text-sm text-yellow-700 dark:text-yellow-400">Focus on reducing debt-to-income ratio and ensuring all payments are made on time.</p>
                   </div>
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-sm text-yellow-700">💡 Avoid taking new loans, increase savings, and consider consolidating high-interest debts.</p>
-                  </div>
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-sm text-yellow-700">💡 If possible, provide collateral to strengthen your application.</p>
+                  <div className="p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <p className="text-sm text-yellow-700 dark:text-yellow-400">💡 Avoid taking new loans, increase savings, and consider consolidating high-interest debts.</p>
                   </div>
                 </>
               )}
-              {prediction.riskScore < 540 && (
+              {prediction.riskScore >= 420 && prediction.riskScore < 540 && (
                 <>
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="font-medium text-red-800">🚨 High Risk — Immediate Action Needed</p>
-                    <p className="text-sm text-red-700">Your profile indicates significant risk. Focus on these critical areas:</p>
+                  <div className="p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg">
+                    <p className="font-medium text-orange-800 dark:text-orange-300">⚠️ High Risk — Action Needed</p>
+                    <p className="text-sm text-orange-700 dark:text-orange-400">Your profile indicates significant risk. Focus on clearing overdue accounts and reducing debt.</p>
                   </div>
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-sm text-red-700">💡 Prioritize paying off overdue debts and clearing any delinquent accounts immediately.</p>
+                  <div className="p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg">
+                    <p className="text-sm text-orange-700 dark:text-orange-400">💡 Set up automatic payments. Even 6 months of on-time payments shows improvement.</p>
                   </div>
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-sm text-red-700">💡 Set up automatic payments to avoid future late payments. Even 6 months of on-time payments shows improvement.</p>
+                </>
+              )}
+              {prediction.riskScore < 420 && (
+                <>
+                  <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
+                    <p className="font-medium text-red-800 dark:text-red-300">🚨 Very High Risk — Immediate Action Needed</p>
+                    <p className="text-sm text-red-700 dark:text-red-400">Prioritize paying off overdue debts and clearing delinquent accounts immediately.</p>
                   </div>
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-sm text-red-700">💡 Reduce credit utilization below 50%, increase your income sources, and avoid any new credit inquiries.</p>
+                  <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
+                    <p className="text-sm text-red-700 dark:text-red-400">💡 Reduce credit utilization below 50%, increase income sources, and avoid new credit inquiries.</p>
                   </div>
                 </>
               )}
@@ -759,22 +711,11 @@ const Predict = () => {
               <Download className="mr-2 h-4 w-4" />
               Download PDF Report
             </Button>
-            <Button
-              onClick={() => navigate('/repayments')}
-              size="lg"
-              variant="default"
-            >
+            <Button onClick={() => navigate('/repayments')} size="lg" variant="default">
               <CreditCard className="mr-2 h-4 w-4" />
               View Repayments
             </Button>
-            <Button
-              onClick={() => {
-                setCurrentStep(1);
-                setPrediction(null);
-              }}
-              size="lg"
-              variant="outline"
-            >
+            <Button onClick={() => { setCurrentStep(1); setPrediction(null); }} size="lg" variant="outline">
               Start New Assessment
             </Button>
           </div>
@@ -790,23 +731,27 @@ const Predict = () => {
         <h1 className="text-4xl font-bold mb-2">CredMill - Credit Risk Assessment</h1>
         <p className="text-muted-foreground">Complete the multi-step form for comprehensive credit risk evaluation</p>
 
+        {historyLoaded && (
+          <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg text-sm text-blue-700 dark:text-blue-400">
+            ℹ️ Some fields have been pre-filled from your previous assessment. You can edit them.
+          </div>
+        )}
+
         {apiConnected === false && (
-          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+          <div className="mt-4 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-red-600" />
             <div>
-              <p className="font-semibold text-red-900">API Connection Failed</p>
-              <p className="text-sm text-red-700">Make sure Flask API is running: python app.py</p>
+              <p className="font-semibold text-red-900 dark:text-red-300">API Connection Failed</p>
+              <p className="text-sm text-red-700 dark:text-red-400">Make sure Flask API is running: python app.py</p>
             </div>
-            <Button variant="outline" size="sm" onClick={checkApiConnection} className="ml-auto">
-              Retry
-            </Button>
+            <Button variant="outline" size="sm" onClick={checkApiConnection} className="ml-auto">Retry</Button>
           </div>
         )}
 
         {apiConnected === true && (
-          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+          <div className="mt-4 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
-            <p className="text-sm text-green-700">API Connected</p>
+            <p className="text-sm text-green-700 dark:text-green-400">API Connected</p>
           </div>
         )}
       </div>
@@ -816,19 +761,13 @@ const Predict = () => {
       <div className="my-8">{renderStep()}</div>
 
       <div className="flex justify-between mt-6">
-        <Button variant="outline" onClick={handleBack} disabled={currentStep === 1}>
-          Back
-        </Button>
+        <Button variant="outline" onClick={handleBack} disabled={currentStep === 1}>Back</Button>
 
         {currentStep < 5 && <Button onClick={handleNext}>Next</Button>}
         {currentStep === 5 && <Button onClick={handleNext}>Review Summary</Button>}
         {currentStep === 6 && (
           <Button onClick={handleSubmit} disabled={isSubmitting || apiConnected === false}>
-            {isSubmitting ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</>
-            ) : (
-              'Submit for Risk Assessment'
-            )}
+            {isSubmitting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</>) : ('Submit for Risk Assessment')}
           </Button>
         )}
       </div>
