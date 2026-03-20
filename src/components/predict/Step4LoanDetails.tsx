@@ -13,17 +13,17 @@ const handleCollateralChange = (value: string, onChange: (field: string, value: 
   onChange('collateral_type', value);
   if (value === 'None') {
     onChange('collateral_value', '0');
-    onChange('transaction_amount', '0');
   }
 };
 
 export const Step4LoanDetails = ({ formData, onChange }: Step4LoanDetailsProps) => {
   return (
     <Card className="p-6">
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex items-center gap-2 mb-2">
         <FileText className="w-5 h-5 text-primary" />
         <h2 className="text-2xl font-bold">Loan & Transaction-Specific Features</h2>
       </div>
+      <p className="text-sm text-muted-foreground mb-6">Details about the loan you're applying for and your recent transaction activity.</p>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
@@ -92,6 +92,9 @@ export const Step4LoanDetails = ({ formData, onChange }: Step4LoanDetailsProps) 
             disabled={formData.collateral_type === 'None'}
             className={formData.collateral_type === 'None' ? 'bg-muted' : ''}
           />
+          {formData.collateral_type === 'None' && (
+            <p className="text-xs text-muted-foreground mt-1">No collateral — value set to 0</p>
+          )}
         </div>
 
         <div>
@@ -103,9 +106,8 @@ export const Step4LoanDetails = ({ formData, onChange }: Step4LoanDetailsProps) 
             onChange={(e) => onChange('transaction_amount', e.target.value)}
             required
             min="0"
-            disabled={formData.collateral_type === 'None'}
-            className={formData.collateral_type === 'None' ? 'bg-muted' : ''}
           />
+          <p className="text-xs text-muted-foreground mt-1">Average amount per transaction</p>
         </div>
 
         <div>

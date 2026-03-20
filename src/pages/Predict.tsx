@@ -93,24 +93,22 @@ const Predict = () => {
 
   const stepLabels = ["Personal", "Financial", "Credit", "Loan", "Behavioral"];
 
-  // Auto-fill from user history
+  // Auto-fill from user history — expanded fields
   useEffect(() => {
     const loadUserHistory = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Get latest prediction
         const { data: latestPred } = await (supabase as any)
           .from('predictions')
-          .select('credit_score, number_of_late_payments, worst_delinquency_status, months_since_last_delinquency, number_of_credit_inquiries, number_of_derogatory_records, credit_mix, bankruptcy_flag, credit_history_length, number_of_open_credit_lines, dpd_trigger_count, avg_probability_of_default')
+          .select('*')
           .eq('user_id', user.id)
           .eq('prediction_type', 'single')
           .order('created_at', { ascending: false })
           .limit(1)
           .single();
 
-        // Get latest profile score (may be updated by repayments)
         const { data: profile } = await (supabase as any)
           .from('profiles')
           .select('latest_credit_score')
@@ -128,10 +126,14 @@ const Predict = () => {
             ...(latestPred?.number_of_derogatory_records != null ? { number_of_derogatory_records: String(latestPred.number_of_derogatory_records) } : {}),
             ...(latestPred?.credit_mix ? { credit_mix: latestPred.credit_mix } : {}),
             ...(latestPred?.bankruptcy_flag != null ? { bankruptcy_flag: latestPred.bankruptcy_flag } : {}),
+            ...(latestPred?.bankruptcy_trigger_flag != null ? { bankruptcy_trigger_flag: latestPred.bankruptcy_trigger_flag } : {}),
             ...(latestPred?.credit_history_length != null ? { credit_history_length: String(latestPred.credit_history_length) } : {}),
             ...(latestPred?.number_of_open_credit_lines != null ? { number_of_open_credit_lines: String(latestPred.number_of_open_credit_lines) } : {}),
             ...(latestPred?.dpd_trigger_count != null ? { dpd_trigger_count: String(latestPred.dpd_trigger_count) } : {}),
             ...(latestPred?.avg_probability_of_default != null ? { average_pd: String((latestPred.avg_probability_of_default * 100).toFixed(2)) } : {}),
+            ...(latestPred?.avg_risk_weighted_assets != null ? { average_rwa: String(latestPred.avg_risk_weighted_assets) } : {}),
+            ...(latestPred?.cash_flow_volatility != null ? { cash_flow_volatility: String(latestPred.cash_flow_volatility) } : {}),
+            ...(latestPred?.seasonal_spending_pattern ? { seasonal_spending_pattern: latestPred.seasonal_spending_pattern } : {}),
           }));
           setHistoryLoaded(true);
         }
@@ -247,7 +249,7 @@ const Predict = () => {
 
     const getRiskColor = (score: number) => {
       if (score >= 760) return '#10b981';
-      if (score >= 660) return '#34d399';
+      if (score >= 660) return '#84cc16';
       if (score >= 540) return '#f59e0b';
       if (score >= 420) return '#f97316';
       return '#ef4444';
@@ -428,11 +430,11 @@ const Predict = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Prediction API request failed');
 
-      console.log('API Response:', data);
-
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
+        const riskLevel = getRiskLevelFromScore(data.predicted_credit_risk_score || data.risk_score);
+
         const { error: dbError } = await (supabase as any)
           .from('predictions')
           .insert({
@@ -484,7 +486,7 @@ const Predict = () => {
             cash_flow_volatility: apiPayload.Cash_Flow_Volatility,
             seasonal_spending_pattern: apiPayload.Seasonal_Spending_Pattern,
             prediction_score: data.predicted_credit_risk_score || data.risk_score,
-            risk_level: data.risk_level,
+            risk_level: riskLevel,
             prediction_label: data.prediction
           });
 
@@ -496,7 +498,7 @@ const Predict = () => {
             .from('profiles')
             .update({
               latest_credit_score: data.predicted_credit_risk_score || data.risk_score,
-              latest_risk_level: data.risk_level,
+              latest_risk_level: riskLevel,
               total_predictions: (await (supabase as any).from('predictions').select('id', { count: 'exact', head: true }).eq('user_id', user.id)).count || 0,
             })
             .eq('user_id', user.id);

@@ -13,10 +13,11 @@ interface Step5BehavioralProps {
 export const Step5Behavioral = ({ formData, onChange }: Step5BehavioralProps) => {
   return (
     <Card className="p-6">
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex items-center gap-2 mb-2">
         <TrendingUp className="w-5 h-5 text-primary" />
         <h2 className="text-2xl font-bold">Behavioral & Temporal Features</h2>
       </div>
+      <p className="text-sm text-muted-foreground mb-6">Historical behavioral patterns and risk indicators. These may be pre-filled from your previous records.</p>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
@@ -77,6 +78,7 @@ export const Step5Behavioral = ({ formData, onChange }: Step5BehavioralProps) =>
             onChange={(e) => onChange('dpd_trigger_count', e.target.value)}
             min="0"
           />
+          <p className="text-xs text-muted-foreground mt-1">Number of times Days Past Due threshold was breached</p>
         </div>
 
         <div>
@@ -90,6 +92,7 @@ export const Step5Behavioral = ({ formData, onChange }: Step5BehavioralProps) =>
             max="1"
             step="0.01"
           />
+          <p className="text-xs text-muted-foreground mt-1">0 = very stable, 1 = highly volatile cash flow</p>
         </div>
 
         <div>

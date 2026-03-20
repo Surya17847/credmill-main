@@ -12,10 +12,11 @@ interface Step2FinancialProps {
 export const Step2Financial = ({ formData, onChange }: Step2FinancialProps) => {
   return (
     <Card className="p-6">
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex items-center gap-2 mb-2">
         <DollarSign className="w-5 h-5 text-primary" />
         <h2 className="text-2xl font-bold">Financial Capacity & History</h2>
       </div>
+      <p className="text-sm text-muted-foreground mb-6">Your income, debts, credit lines, and asset information. Some fields are auto-calculated.</p>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
@@ -139,6 +140,7 @@ export const Step2Financial = ({ formData, onChange }: Step2FinancialProps) => {
             required
             min="0"
           />
+          <p className="text-xs text-muted-foreground mt-1">Include estimated value of all assets such as savings, property, investments, vehicles, etc.</p>
         </div>
 
         <div>
