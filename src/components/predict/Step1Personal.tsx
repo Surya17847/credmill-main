@@ -12,10 +12,11 @@ interface Step1PersonalProps {
 export const Step1Personal = ({ formData, onChange }: Step1PersonalProps) => {
   return (
     <Card className="p-6">
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex items-center gap-2 mb-2">
         <User className="w-5 h-5 text-primary" />
         <h2 className="text-2xl font-bold">Personal & Residential Information</h2>
       </div>
+      <p className="text-sm text-muted-foreground mb-6">Basic demographic and residential details used by the credit risk model.</p>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
