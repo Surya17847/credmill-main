@@ -169,6 +169,11 @@ export default function Explainability() {
   const getShapFeatures = () => result?.feature_importance_explanation?.top_features || [];
 
   const getImpactDistribution = () => {
+    // Prefer backend-returned impact_distribution
+    if (result?.impact_distribution && Array.isArray(result.impact_distribution) && result.impact_distribution.length > 0) {
+      return result.impact_distribution;
+    }
+    // Fallback: derive from SHAP features
     const features = getShapFeatures();
     if (!features.length) return [];
     const positive = features.filter((f: any) => f.impact === "positive").reduce((sum: number, f: any) => sum + f.magnitude, 0);
