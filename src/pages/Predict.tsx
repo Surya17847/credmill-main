@@ -434,7 +434,7 @@ const Predict = () => {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
-        const riskLevel = getRiskLevelFromScore(data.predicted_credit_risk_score || data.risk_score);
+        const riskLevel = data.risk_level || getRiskLevelFromScore(data.predicted_credit_risk_score || data.risk_score);
 
         const { error: dbError } = await (supabase as any)
           .from('predictions')
