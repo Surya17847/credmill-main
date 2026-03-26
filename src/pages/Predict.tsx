@@ -236,6 +236,7 @@ const Predict = () => {
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
+  // Visual-only fallback when backend doesn't return risk_level
   const getRiskLevelFromScore = (score: number) => {
     if (score >= 760) return '🟢 Very Low Risk';
     if (score >= 660) return '🟩 Low Risk';
@@ -433,7 +434,7 @@ const Predict = () => {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
-        const riskLevel = getRiskLevelFromScore(data.predicted_credit_risk_score || data.risk_score);
+        const riskLevel = data.risk_level || getRiskLevelFromScore(data.predicted_credit_risk_score || data.risk_score);
 
         const { error: dbError } = await (supabase as any)
           .from('predictions')
@@ -559,29 +560,28 @@ const Predict = () => {
         }
       }
 
+      // Use backend response as single source of truth
       const riskScore = data.predicted_credit_risk_score;
       const transformedPrediction = {
         riskScore,
-        riskLevel: getRiskLevelFromScore(riskScore),
-        probabilityOfDefault: data.probability_of_default || (
-          riskScore >= 760 ? 0.02 : riskScore >= 660 ? 0.05 : riskScore >= 540 ? 0.15 : riskScore >= 420 ? 0.30 : 0.50
-        ),
-        modelVersion: 'XGBoost v2.0',
+        riskLevel: data.risk_level || getRiskLevelFromScore(riskScore),
+        riskColor: data.risk_color || undefined,
+        probabilityOfDefault: data.probability_of_default ?? 0,
+        approvalStatus: data.approval_status || null,
+        approvalMessage: data.approval_message || null,
+        explanationSummary: data.explanation_summary || null,
+        approvalFactors: data.approval_factors || [],
+        rejectionReasons: data.rejection_reasons || [],
+        featureImportance: data.feature_importance_explanation || null,
+        limeExplanation: data.lime_explanation || null,
+        impactDistribution: data.impact_distribution || null,
         totalFeaturesUsed: data.total_features_used,
-        recommendation: riskScore >= 760 ?
-          'Excellent credit profile. Loan approval recommended with the most favorable terms.' :
-          riskScore >= 660 ?
-            'Good credit profile. Loan approval recommended with standard terms.' :
-            riskScore >= 540 ?
-              'Moderate credit profile. Loan may be approved with higher interest rates or additional requirements.' :
-              riskScore >= 420 ?
-                'High risk profile. Additional collateral or co-signer may be required.' :
-                'Very high risk. Consider debt reduction and timely payments before reapplying.',
+        recommendation: data.approval_message || null,
       };
 
       setPrediction(transformedPrediction);
       setCurrentStep(7);
-      toast({ title: "✅ Assessment Complete", description: `Credit Risk Score: ${transformedPrediction.riskScore}` });
+      toast({ title: "✅ Assessment Complete", description: `Credit Risk Score: ${riskScore}` });
     } catch (error: any) {
       console.error('Prediction error:', error);
       toast({ title: "Error", description: error.message || "Failed to generate prediction.", variant: "destructive" });
@@ -605,6 +605,13 @@ const Predict = () => {
 
   // ─── Results View ──────────────────────────────────────────────────────────
   if (currentStep === 7 && prediction) {
+    const getApprovalStatusStyle = (status: string | null) => {
+      if (status === 'approved') return 'border-green-500 bg-green-50 dark:bg-green-950/30';
+      if (status === 'conditional') return 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30';
+      if (status === 'rejected') return 'border-red-500 bg-red-50 dark:bg-red-950/30';
+      return 'border-primary';
+    };
+
     return (
       <div className="container mx-auto py-8 px-4">
         <div className="mb-8" ref={(el) => { if (el) window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
@@ -616,6 +623,14 @@ const Predict = () => {
           <Card className="p-6">
             <RiskMeter score={prediction.riskScore} riskLevel={prediction.riskLevel} />
           </Card>
+
+          {/* Approval Status from Backend */}
+          {prediction.approvalStatus && (
+            <Card className={`p-6 border-l-4 ${getApprovalStatusStyle(prediction.approvalStatus)}`}>
+              <h2 className="text-2xl font-bold mb-2 capitalize">{prediction.approvalStatus}</h2>
+              {prediction.approvalMessage && <p className="text-lg">{prediction.approvalMessage}</p>}
+            </Card>
+          )}
 
           <Card className="p-6">
             <h2 className="text-2xl font-bold mb-4">Summary Statistics</h2>
@@ -636,76 +651,56 @@ const Predict = () => {
             </div>
           </Card>
 
-          {prediction.recommendation && (
+          {/* Explanation Summary from Backend */}
+          {prediction.explanationSummary && (
             <Card className="p-6 border-l-4 border-l-primary">
-              <h2 className="text-2xl font-bold mb-2">Recommendation</h2>
-              <p className="text-lg">{prediction.recommendation}</p>
+              <h2 className="text-2xl font-bold mb-2">Assessment Summary</h2>
+              <p className="text-lg">{prediction.explanationSummary}</p>
             </Card>
           )}
 
-          {/* Improvement Suggestions */}
-          <Card className="p-6">
-            <h2 className="text-2xl font-bold mb-4">
-              {prediction.riskScore >= 660 ? '✅ Suggestions to Maintain Your Score' : '⚠️ Suggestions to Improve Your Score'}
-            </h2>
-            <div className="space-y-3">
-              {prediction.riskScore >= 760 && (
-                <>
-                  <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
-                    <p className="font-medium text-green-800 dark:text-green-300">🌟 Excellent Credit Profile!</p>
-                    <p className="text-sm text-green-700 dark:text-green-400">Your credit score is outstanding. Continue maintaining low debt, timely payments, and stable employment.</p>
+          {/* Approval Factors (Strengths) from Backend */}
+          {prediction.approvalFactors && prediction.approvalFactors.length > 0 && (
+            <Card className="p-6">
+              <h2 className="text-2xl font-bold mb-4 text-green-700 dark:text-green-400">✅ Strengths in Your Application</h2>
+              <div className="space-y-3">
+                {prediction.approvalFactors.map((factor: any, idx: number) => (
+                  <div key={idx} className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium text-green-800 dark:text-green-300">{factor.factor || factor}</p>
+                      {factor.contribution != null && (
+                        <span className="text-sm font-semibold text-green-600 dark:text-green-400">+{Number(factor.contribution).toFixed(3)}</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
-                    <p className="text-sm text-green-700 dark:text-green-400">💡 Keep credit utilization below 30% and avoid unnecessary credit inquiries.</p>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Rejection Reasons (Needs Improvement) from Backend */}
+          {prediction.rejectionReasons && prediction.rejectionReasons.length > 0 && (
+            <Card className="p-6">
+              <h2 className="text-2xl font-bold mb-4 text-red-700 dark:text-red-400">⚠️ Needs Improvement</h2>
+              <div className="space-y-3">
+                {prediction.rejectionReasons.map((reason: any, idx: number) => (
+                  <div key={idx} className="p-4 bg-red-50 dark:bg-red-950/30 border-l-4 border-red-500 rounded-r-lg">
+                    <h3 className="font-semibold text-lg mb-1">{reason.factor || reason}</h3>
+                    {reason.issue && <p className="text-sm mb-1"><strong>Issue:</strong> {reason.issue}</p>}
+                    {reason.improvement && <p className="text-sm mb-1"><strong>How to Improve:</strong> {reason.improvement}</p>}
+                    {reason.impact_score != null && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <div className="flex-1 bg-red-200 dark:bg-red-900/50 rounded-full h-2">
+                          <div className="bg-red-600 h-2 rounded-full" style={{ width: `${Math.min(reason.impact_score * 100, 100)}%` }}></div>
+                        </div>
+                        <span className="text-xs font-medium">Impact: {reason.impact_score.toFixed(2)}</span>
+                      </div>
+                    )}
                   </div>
-                </>
-              )}
-              {prediction.riskScore >= 660 && prediction.riskScore < 760 && (
-                <>
-                  <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
-                    <p className="font-medium text-blue-800 dark:text-blue-300">👍 Good Credit Profile</p>
-                    <p className="text-sm text-blue-700 dark:text-blue-400">You're in a solid position. Small improvements can push you into the excellent range.</p>
-                  </div>
-                  <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
-                    <p className="text-sm text-blue-700 dark:text-blue-400">💡 Consider paying down existing debts and building a longer credit history.</p>
-                  </div>
-                </>
-              )}
-              {prediction.riskScore >= 540 && prediction.riskScore < 660 && (
-                <>
-                  <div className="p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                    <p className="font-medium text-yellow-800 dark:text-yellow-300">⚡ Medium Risk — Room for Improvement</p>
-                    <p className="text-sm text-yellow-700 dark:text-yellow-400">Focus on reducing debt-to-income ratio and ensuring all payments are made on time.</p>
-                  </div>
-                  <div className="p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                    <p className="text-sm text-yellow-700 dark:text-yellow-400">💡 Avoid taking new loans, increase savings, and consider consolidating high-interest debts.</p>
-                  </div>
-                </>
-              )}
-              {prediction.riskScore >= 420 && prediction.riskScore < 540 && (
-                <>
-                  <div className="p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg">
-                    <p className="font-medium text-orange-800 dark:text-orange-300">⚠️ High Risk — Action Needed</p>
-                    <p className="text-sm text-orange-700 dark:text-orange-400">Your profile indicates significant risk. Focus on clearing overdue accounts and reducing debt.</p>
-                  </div>
-                  <div className="p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg">
-                    <p className="text-sm text-orange-700 dark:text-orange-400">💡 Set up automatic payments. Even 6 months of on-time payments shows improvement.</p>
-                  </div>
-                </>
-              )}
-              {prediction.riskScore < 420 && (
-                <>
-                  <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
-                    <p className="font-medium text-red-800 dark:text-red-300">🚨 Very High Risk — Immediate Action Needed</p>
-                    <p className="text-sm text-red-700 dark:text-red-400">Prioritize paying off overdue debts and clearing delinquent accounts immediately.</p>
-                  </div>
-                  <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
-                    <p className="text-sm text-red-700 dark:text-red-400">💡 Reduce credit utilization below 50%, increase income sources, and avoid new credit inquiries.</p>
-                  </div>
-                </>
-              )}
-            </div>
-          </Card>
+                ))}
+              </div>
+            </Card>
+          )}
 
           {/* Action Buttons */}
           <div className="flex justify-center gap-4 flex-wrap">
