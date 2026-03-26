@@ -467,12 +467,13 @@ export default function Explainability() {
               </Card>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {getImpactDistribution().length > 0 && (
                 <Card className="p-6">
                   <h3 className="text-xl font-semibold mb-4">Impact Distribution</h3>
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
                       <Pie data={getImpactDistribution()} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`} outerRadius={100} dataKey="value">
-                        {getImpactDistribution().map((entry, index) => (
+                        {getImpactDistribution().map((entry: any, index: number) => (
                           <Cell key={`cell-${index}`} fill={entry.fill} />
                         ))}
                       </Pie>
@@ -480,6 +481,7 @@ export default function Explainability() {
                     </PieChart>
                   </ResponsiveContainer>
                 </Card>
+              )}
 
                 <Card className="p-6">
                   <h3 className="text-xl font-semibold mb-4">Feature Impact Radar</h3>
