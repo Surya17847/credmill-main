@@ -236,6 +236,7 @@ const Predict = () => {
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
+  // Visual-only fallback when backend doesn't return risk_level
   const getRiskLevelFromScore = (score: number) => {
     if (score >= 760) return '🟢 Very Low Risk';
     if (score >= 660) return '🟩 Low Risk';
@@ -559,29 +560,28 @@ const Predict = () => {
         }
       }
 
+      // Use backend response as single source of truth
       const riskScore = data.predicted_credit_risk_score;
       const transformedPrediction = {
         riskScore,
-        riskLevel: getRiskLevelFromScore(riskScore),
-        probabilityOfDefault: data.probability_of_default || (
-          riskScore >= 760 ? 0.02 : riskScore >= 660 ? 0.05 : riskScore >= 540 ? 0.15 : riskScore >= 420 ? 0.30 : 0.50
-        ),
-        modelVersion: 'XGBoost v2.0',
+        riskLevel: data.risk_level || getRiskLevelFromScore(riskScore),
+        riskColor: data.risk_color || undefined,
+        probabilityOfDefault: data.probability_of_default ?? 0,
+        approvalStatus: data.approval_status || null,
+        approvalMessage: data.approval_message || null,
+        explanationSummary: data.explanation_summary || null,
+        approvalFactors: data.approval_factors || [],
+        rejectionReasons: data.rejection_reasons || [],
+        featureImportance: data.feature_importance_explanation || null,
+        limeExplanation: data.lime_explanation || null,
+        impactDistribution: data.impact_distribution || null,
         totalFeaturesUsed: data.total_features_used,
-        recommendation: riskScore >= 760 ?
-          'Excellent credit profile. Loan approval recommended with the most favorable terms.' :
-          riskScore >= 660 ?
-            'Good credit profile. Loan approval recommended with standard terms.' :
-            riskScore >= 540 ?
-              'Moderate credit profile. Loan may be approved with higher interest rates or additional requirements.' :
-              riskScore >= 420 ?
-                'High risk profile. Additional collateral or co-signer may be required.' :
-                'Very high risk. Consider debt reduction and timely payments before reapplying.',
+        recommendation: data.approval_message || null,
       };
 
       setPrediction(transformedPrediction);
       setCurrentStep(7);
-      toast({ title: "✅ Assessment Complete", description: `Credit Risk Score: ${transformedPrediction.riskScore}` });
+      toast({ title: "✅ Assessment Complete", description: `Credit Risk Score: ${riskScore}` });
     } catch (error: any) {
       console.error('Prediction error:', error);
       toast({ title: "Error", description: error.message || "Failed to generate prediction.", variant: "destructive" });
