@@ -50,23 +50,16 @@ interface Repayment {
 }
 
 // ─── Credit Scoring Engine ──────────────────────────────────────────────────
-// Industry-standard mapping (driven by payment mode):
-//   early      → +10  (Pay Now defaults to Early)
+// Exact repayment score mapping:
+//   early      → +10
 //   on_time    → +8
 //   late_1_30  → -15
 //   late_31_60 → -50
 //   late_61_90 → -75
-//   missed     → -100 (90+ days)
+//   missed     → -100
 function calculatePaymentScoring(
   mode: 'early' | 'on_time' | 'late_1_30' | 'late_31_60' | 'late_61_90' | 'missed',
   emiAmount: number,
-  consecutiveOnTime: number,
-  consecutiveLate: number,
-  totalOnTimeStreak: number,
-  utilization: number,
-  isLastEMI: boolean,
-  allPaidCount: number,
-  totalEMIs: number,
 ) {
   let scoreImpact = 0;
   let penalty = 0;
@@ -110,30 +103,6 @@ function calculatePaymentScoring(
       pdChange = 12;
       penalty = emiAmount * 0.05;
       break;
-  }
-
-  // 3️⃣ Consecutive Behavior Bonus / Penalty
-  if (status === 'paid_on_time' || status === 'paid_early') {
-    const newStreak = consecutiveOnTime + 1;
-    if (newStreak === 6) scoreImpact += 15;
-    if (newStreak === 12) scoreImpact += 20; // risk category upgrade bonus
-  }
-  if (status === 'paid_late' || status === 'missed') {
-    const newLateStreak = consecutiveLate + 1;
-    if (newLateStreak >= 3) scoreImpact -= 30; // additional penalty
-  }
-
-  // 4️⃣ Utilization Impact
-  if (utilization < 0.3) {
-    scoreImpact += 5;
-  } else if (utilization > 0.7) {
-    scoreImpact -= 20;
-  }
-
-  // 5️⃣ Full Repayment Case
-  if (isLastEMI && (status === 'paid_on_time' || status === 'paid_early')) {
-    scoreImpact += 25;
-    pdChange -= 5;
   }
 
   const totalPaid = emiAmount + penalty + fine;
@@ -252,26 +221,10 @@ export default function Repayments() {
     const loan = loans.find(l => l.id === repayment.loan_id);
     if (!loan) return;
 
-    const { consecutiveOnTime, consecutiveLate } = getStreaks();
-    const utilization = loan.remaining_principal / loan.loan_amount;
     const pendingCount = repayments.filter(r => r.status === 'pending').length;
     const isLastEMI = pendingCount === 1;
-    const paidCount = repayments.filter(r => r.status !== 'pending').length;
-
-    const result = calculatePaymentScoring(
-      resolvedMode, repayment.emi_amount,
-      consecutiveOnTime, consecutiveLate,
-      consecutiveOnTime, utilization,
-      isLastEMI, paidCount, repayments.length
-    );
-
-    // Check if 3 consecutive missed → downgrade
-    let extraPenalty = 0;
-    if (result.status === 'missed' && consecutiveLate >= 2) {
-      extraPenalty = -30; // 3 consecutive missed = risk downgrade
-    }
-
-    const finalScoreImpact = result.scoreImpact + extraPenalty;
+    const result = calculatePaymentScoring(resolvedMode, repayment.emi_amount);
+    const finalScoreImpact = result.scoreImpact;
 
     await (supabase as any)
       .from('repayments')
@@ -325,8 +278,8 @@ export default function Repayments() {
     const statusMessages: Record<string, string> = {
       paid_early: `🌟 Paid early! Score: +${finalScoreImpact}`,
       paid_on_time: `✅ Paid on time! Score: +${finalScoreImpact}`,
-      paid_late: `⚠️ Late payment. Fine: ₹${result.fine.toFixed(0)}. Score: ${finalScoreImpact}`,
-      missed: `🚨 Default-level late (90+ days). Penalty: ₹${result.penalty.toFixed(0)}. Score: ${finalScoreImpact}`,
+      paid_late: `⚠️ Late payment recorded. Fine: ₹${result.fine.toFixed(0)}. Score: ${finalScoreImpact}`,
+      missed: `🚨 Missed payment recorded. Penalty: ₹${result.penalty.toFixed(0)}. Score: ${finalScoreImpact}`,
     };
 
     toast(statusMessages[result.status] || 'Payment recorded');
@@ -339,10 +292,8 @@ export default function Repayments() {
     if (!user) return;
 
     const pendingRepayments = repayments.filter(r => r.status === 'pending');
-    // Early payoff: +25 completion bonus + per-month bonus
-    const perMonthBonus = 8;
-    const completionBonus = 25;
-    const earlyPayoffBonus = (pendingRepayments.length * perMonthBonus) + completionBonus;
+    const perMonthBonus = 10;
+    const earlyPayoffBonus = pendingRepayments.length * perMonthBonus;
 
     for (const r of pendingRepayments) {
       await (supabase as any)
@@ -374,7 +325,7 @@ export default function Repayments() {
     if (profile) {
       const newScore = clampScore((profile.latest_credit_score || 650) + earlyPayoffBonus);
       setCurrentScore(newScore);
-      const newPD = Math.max(0, currentPD - 5);
+      const newPD = Math.max(0, currentPD - pendingRepayments.length);
       setCurrentPD(newPD);
       
       await (supabase as any)
@@ -386,7 +337,7 @@ export default function Repayments() {
         .eq('user_id', user.id);
     }
 
-    toast(`🎉 Loan paid off early! Credit score boosted by +${earlyPayoffBonus} points! Loan marked as Successfully Closed.`);
+    toast(`🎉 Loan paid off early! Credit score boosted by +${earlyPayoffBonus} points.`);
     loadLoans();
     loadRepayments(loan.id);
   };
@@ -457,7 +408,7 @@ export default function Repayments() {
         <Card className="p-12 text-center">
           <IndianRupee className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h2 className="text-xl font-semibold mb-2">No Active Loans</h2>
-          <p className="text-muted-foreground mb-4">Complete a credit risk prediction to get a loan approved and start tracking repayments.</p>
+          <p className="text-muted-foreground mb-4">Complete a credit risk prediction to create a repayment schedule and start tracking payments.</p>
           <Button onClick={() => window.location.href = '/predict'}>Make a Prediction</Button>
         </Card>
       ) : (

@@ -29,6 +29,22 @@ import {
 const API_URL = 'http://127.0.0.1:10000';
 // const API_URL = 'https://be-project-xak5.onrender.com';
 
+const softenDecisionLanguage = (text?: string | null) => {
+  if (!text) return "";
+
+  return text
+    .replace(/\bapproved\b/gi, 'most likely accepted')
+    .replace(/\baccepted\b/gi, 'most likely accepted')
+    .replace(/\brejected\b/gi, 'most likely rejected')
+    .replace(/\bdeclined\b/gi, 'most likely rejected');
+};
+
+const normalizeFeatureKey = (value?: string | null) =>
+  (value || '')
+    .split(/<=|>=|=|<|>/)[0]
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+
 export default function Explainability() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -169,6 +185,28 @@ export default function Explainability() {
 
   const getShapFeatures = () => result?.feature_importance_explanation?.top_features || [];
 
+  const getSoftStatusLabel = (status?: string | null) => {
+    if (status === 'approved') return 'Most likely accepted';
+    if (status === 'rejected') return 'Most likely rejected';
+    if (status === 'conditional') return 'May be accepted with conditions';
+    return status || 'Credit risk assessment';
+  };
+
+  const getShapImpactForFeature = (featureName?: string | null) => {
+    const normalizedTarget = normalizeFeatureKey(featureName);
+    const shapFeatures = getShapFeatures();
+
+    const directMatch = shapFeatures.find((feature: any) => normalizeFeatureKey(feature.feature) === normalizedTarget);
+    if (directMatch?.impact) return directMatch.impact;
+
+    const partialMatch = shapFeatures.find((feature: any) => {
+      const normalizedShap = normalizeFeatureKey(feature.feature);
+      return normalizedShap && (normalizedTarget.includes(normalizedShap) || normalizedShap.includes(normalizedTarget));
+    });
+
+    return partialMatch?.impact;
+  };
+
   const getImpactDistribution = () => {
     // Prefer backend-returned impact_distribution
     if (result?.impact_distribution && Array.isArray(result.impact_distribution) && result.impact_distribution.length > 0) {
@@ -298,8 +336,8 @@ export default function Explainability() {
           <Card className={`p-8 ${getStatusColor(result.approval_status)} border-2`}>
             <div className="flex items-start justify-between mb-6">
               <div>
-                <h2 className="text-2xl font-semibold mb-2">Credit Risk Assessment</h2>
-                <p className="text-lg font-medium">{result.approval_message}</p>
+                <h2 className="text-2xl font-semibold mb-2">{getSoftStatusLabel(result.approval_status)}</h2>
+                <p className="text-lg font-medium">{softenDecisionLanguage(result.approval_message)}</p>
               </div>
               {getStatusIcon(result.approval_status)}
             </div>
@@ -522,27 +560,31 @@ export default function Explainability() {
               <p className="text-muted-foreground mb-6">How each feature influenced the prediction for your specific application</p>
               <div className="space-y-3">
                 {(result?.lime_explanation?.contributions || []).map((item: any, index: number) => {
-                  const isRiskIncreasing = item.weight > 0;
+                  const shapImpact = getShapImpactForFeature(item.feature);
+                  const isRiskIncreasing = shapImpact ? shapImpact === 'negative' : item.weight < 0;
                   return (
-                    <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                    <div
+                      key={index}
+                      className={`flex items-center justify-between p-4 border rounded-lg transition-colors ${isRiskIncreasing ? 'border-red-200 dark:border-red-900/50 bg-red-50/60 dark:bg-red-950/20' : 'border-green-200 dark:border-green-900/50 bg-green-50/60 dark:bg-green-950/20'}`}
+                    >
                       <div className="flex items-center gap-3 flex-1">
                         {isRiskIncreasing ? (
-                          <TrendingUp className="text-red-500 h-5 w-5 flex-shrink-0" />
+                          <AlertCircle className="text-red-500 h-5 w-5 flex-shrink-0" />
                         ) : (
-                          <TrendingDown className="text-green-500 h-5 w-5 flex-shrink-0" />
+                          <CheckCircle className="text-green-500 h-5 w-5 flex-shrink-0" />
                         )}
                         <div className="flex-1">
                           <p className="font-medium">{item.feature}</p>
                           <p className="text-xs text-muted-foreground">
-                            {isRiskIncreasing ? 'Increases default risk' : 'Reduces default risk'}
+                            {isRiskIncreasing ? 'Needs improvement' : 'Strength in your application'}
                           </p>
                         </div>
                       </div>
                       <div className="text-right ml-4">
                         <span className={`text-lg font-semibold ${isRiskIncreasing ? "text-red-600" : "text-green-600"}`}>
-                          {item.weight > 0 ? '+' : ''}{item.weight.toFixed(3)}
+                          {Math.abs(item.weight).toFixed(3)}
                         </span>
-                        <p className="text-xs text-muted-foreground">weight</p>
+                        <p className="text-xs text-muted-foreground">magnitude</p>
                       </div>
                     </div>
                   );

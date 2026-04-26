@@ -18,6 +18,16 @@ import { useNavigate } from "react-router-dom";
 const API_URL = 'http://127.0.0.1:10000';
 // const API_URL = 'https://be-project-xak5.onrender.com';
 
+const softenDecisionLanguage = (text?: string | null) => {
+  if (!text) return "";
+
+  return text
+    .replace(/\bapproved\b/gi, 'most likely accepted')
+    .replace(/\baccepted\b/gi, 'most likely accepted')
+    .replace(/\brejected\b/gi, 'most likely rejected')
+    .replace(/\bdeclined\b/gi, 'most likely rejected');
+};
+
 const Predict = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -588,7 +598,7 @@ const Predict = () => {
         limeExplanation: data.lime_explanation || null,
         impactDistribution: data.impact_distribution || null,
         totalFeaturesUsed: data.total_features_used,
-        recommendation: data.approval_message || null,
+        recommendation: softenDecisionLanguage(data.approval_message) || null,
       };
 
       setPrediction(transformedPrediction);
@@ -641,12 +651,12 @@ const Predict = () => {
             const statusLabel =
               prediction.approvalStatus === 'approved' ? 'Most likely accepted' :
               prediction.approvalStatus === 'rejected' ? 'Most likely rejected' :
-              prediction.approvalStatus === 'conditional' ? 'Conditional approval' :
+              prediction.approvalStatus === 'conditional' ? 'May be accepted with conditions' :
               String(prediction.approvalStatus);
             return (
               <Card className={`p-6 border-l-4 ${getApprovalStatusStyle(prediction.approvalStatus)}`}>
                 <h2 className="text-2xl font-bold mb-2">{statusLabel}</h2>
-                {prediction.approvalMessage && <p className="text-lg">{prediction.approvalMessage}</p>}
+                {prediction.approvalMessage && <p className="text-lg">{softenDecisionLanguage(prediction.approvalMessage)}</p>}
               </Card>
             );
           })()}
