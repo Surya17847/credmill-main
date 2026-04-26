@@ -702,21 +702,27 @@ const Predict = () => {
             <Card className="p-6">
               <h2 className="text-2xl font-bold mb-4 text-red-700 dark:text-red-400">⚠️ Needs Improvement</h2>
               <div className="space-y-3">
-                {prediction.rejectionReasons.map((reason: any, idx: number) => (
-                  <div key={idx} className="p-4 bg-red-50 dark:bg-red-950/30 border-l-4 border-red-500 rounded-r-lg">
-                    <h3 className="font-semibold text-lg mb-1">{reason.factor || reason}</h3>
-                    {reason.issue && <p className="text-sm mb-1"><strong>Issue:</strong> {reason.issue}</p>}
-                    {reason.improvement && <p className="text-sm mb-1"><strong>How to Improve:</strong> {reason.improvement}</p>}
-                    {reason.impact_score != null && (
-                      <div className="mt-2 flex items-center gap-2">
-                        <div className="flex-1 bg-red-200 dark:bg-red-900/50 rounded-full h-2">
-                          <div className="bg-red-600 h-2 rounded-full" style={{ width: `${Math.min(reason.impact_score * 100, 100)}%` }}></div>
+                {prediction.rejectionReasons.map((reason: any, idx: number) => {
+                  const hasImpact = reason.impact_score != null && Number(reason.impact_score) > 0;
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-4 bg-red-50 dark:bg-red-950/30 rounded-lg ${hasImpact ? 'border-l-4 border-red-500 rounded-r-lg' : 'border border-red-200 dark:border-red-800'}`}
+                    >
+                      <h3 className="font-semibold text-lg mb-1">{reason.factor || reason}</h3>
+                      {reason.issue && <p className="text-sm mb-1"><strong>Issue:</strong> {reason.issue}</p>}
+                      {reason.improvement && <p className="text-sm mb-1"><strong>How to Improve:</strong> {reason.improvement}</p>}
+                      {hasImpact && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="flex-1 bg-red-200 dark:bg-red-900/50 rounded-full h-2">
+                            <div className="bg-red-600 h-2 rounded-full" style={{ width: `${Math.min(reason.impact_score * 100, 100)}%` }}></div>
+                          </div>
+                          <span className="text-xs font-medium">Impact: {Number(reason.impact_score).toFixed(2)}</span>
                         </div>
-                        <span className="text-xs font-medium">Impact: {reason.impact_score.toFixed(2)}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </Card>
           )}
