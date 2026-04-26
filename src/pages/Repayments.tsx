@@ -698,10 +698,12 @@ export default function Repayments() {
                                             <SelectValue placeholder="Simulate..." />
                                           </SelectTrigger>
                                           <SelectContent>
-                                            <SelectItem value="late_1_30">Late (1-30d)</SelectItem>
-                                            <SelectItem value="late_31_60">Late (31-60d)</SelectItem>
-                                            <SelectItem value="late_61_90">Late (61-90d)</SelectItem>
-                                            <SelectItem value="missed">Missed (90+d)</SelectItem>
+                                            <SelectItem value="early">Early (+10)</SelectItem>
+                                            <SelectItem value="on_time">On Time (+8)</SelectItem>
+                                            <SelectItem value="late_1_30">Late (1-30d) (-15)</SelectItem>
+                                            <SelectItem value="late_31_60">Late (31-60d) (-50)</SelectItem>
+                                            <SelectItem value="late_61_90">Late (61-90d) (-75)</SelectItem>
+                                            <SelectItem value="missed">Missed (90+d) (-100)</SelectItem>
                                           </SelectContent>
                                         </Select>
                                       </>
