@@ -50,8 +50,15 @@ interface Repayment {
 }
 
 // ─── Credit Scoring Engine ──────────────────────────────────────────────────
+// Industry-standard mapping (driven by payment mode):
+//   early      → +10  (Pay Now defaults to Early)
+//   on_time    → +8
+//   late_1_30  → -15
+//   late_31_60 → -50
+//   late_61_90 → -75
+//   missed     → -100 (90+ days)
 function calculatePaymentScoring(
-  daysDiff: number, // positive = late, negative = early
+  mode: 'early' | 'on_time' | 'late_1_30' | 'late_31_60' | 'late_61_90' | 'missed',
   emiAmount: number,
   consecutiveOnTime: number,
   consecutiveLate: number,
@@ -67,38 +74,42 @@ function calculatePaymentScoring(
   let status = 'paid_on_time';
   let pdChange = 0;
 
-  // 1️⃣ Payment Timing Rules
-  if (daysDiff <= 0) {
-    // Early or on-time
-    if (daysDiff < 0) {
+  // 1️⃣ Payment Timing Rules — strict mapping
+  switch (mode) {
+    case 'early':
       status = 'paid_early';
       scoreImpact = 10;
       pdChange = -1;
-    } else {
+      break;
+    case 'on_time':
       status = 'paid_on_time';
       scoreImpact = 8;
       pdChange = -0.5;
-    }
-  } else if (daysDiff <= 30) {
-    status = 'paid_late';
-    scoreImpact = -15;
-    pdChange = 2;
-    fine = emiAmount * 0.02;
-  } else if (daysDiff <= 60) {
-    status = 'paid_late';
-    scoreImpact = -50;
-    pdChange = 5;
-    fine = emiAmount * 0.03;
-  } else if (daysDiff <= 90) {
-    status = 'paid_late';
-    scoreImpact = -75;
-    pdChange = 8;
-    penalty = emiAmount * 0.05;
-  } else {
-    status = 'missed';
-    scoreImpact = -100;
-    pdChange = 12;
-    penalty = emiAmount * 0.05;
+      break;
+    case 'late_1_30':
+      status = 'paid_late';
+      scoreImpact = -15;
+      pdChange = 2;
+      fine = emiAmount * 0.02;
+      break;
+    case 'late_31_60':
+      status = 'paid_late';
+      scoreImpact = -50;
+      pdChange = 5;
+      fine = emiAmount * 0.03;
+      break;
+    case 'late_61_90':
+      status = 'paid_late';
+      scoreImpact = -75;
+      pdChange = 8;
+      penalty = emiAmount * 0.05;
+      break;
+    case 'missed':
+      status = 'missed';
+      scoreImpact = -100;
+      pdChange = 12;
+      penalty = emiAmount * 0.05;
+      break;
   }
 
   // 3️⃣ Consecutive Behavior Bonus / Penalty
