@@ -565,19 +565,27 @@ export default function Explainability() {
                     Areas for Improvement
                   </h2>
                   <div className="space-y-4">
-                    {result.rejection_reasons.map((reason: any, idx: number) => (
-                      <div key={idx} className="p-5 border-l-4 border-red-500 bg-red-50 dark:bg-red-950/30 rounded-r-lg">
-                        <h3 className="font-semibold text-lg mb-2">{reason.factor}</h3>
-                        <p className="text-sm mb-2"><strong>Issue:</strong> {reason.issue}</p>
-                        <p className="text-sm mb-2"><strong>How to Improve:</strong> {reason.improvement}</p>
-                        <div className="mt-3 flex items-center gap-2">
-                          <div className="flex-1 bg-red-200 dark:bg-red-900/50 rounded-full h-2">
-                            <div className="bg-red-600 h-2 rounded-full" style={{ width: `${Math.min(reason.impact_score * 100, 100)}%` }}></div>
-                          </div>
-                          <span className="text-xs font-medium">Impact: {reason.impact_score.toFixed(2)}</span>
+                    {result.rejection_reasons.map((reason: any, idx: number) => {
+                      const hasImpact = reason.impact_score != null && Number(reason.impact_score) > 0;
+                      return (
+                        <div
+                          key={idx}
+                          className={`p-5 bg-red-50 dark:bg-red-950/30 rounded-lg ${hasImpact ? 'border-l-4 border-red-500 rounded-r-lg' : 'border border-red-200 dark:border-red-800'}`}
+                        >
+                          <h3 className="font-semibold text-lg mb-2">{reason.factor}</h3>
+                          {reason.issue && <p className="text-sm mb-2"><strong>Issue:</strong> {reason.issue}</p>}
+                          {reason.improvement && <p className="text-sm mb-2"><strong>How to Improve:</strong> {reason.improvement}</p>}
+                          {hasImpact && (
+                            <div className="mt-3 flex items-center gap-2">
+                              <div className="flex-1 bg-red-200 dark:bg-red-900/50 rounded-full h-2">
+                                <div className="bg-red-600 h-2 rounded-full" style={{ width: `${Math.min(reason.impact_score * 100, 100)}%` }}></div>
+                              </div>
+                              <span className="text-xs font-medium">Impact: {Number(reason.impact_score).toFixed(2)}</span>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </Card>
               )}
