@@ -119,6 +119,17 @@ const Predict = () => {
         if (latestPred || profile) {
           setFormData(prev => ({
             ...prev,
+            // Step 1: Personal & Residential — autofill from latest record
+            ...(latestPred?.age != null ? { age: String(latestPred.age) } : {}),
+            ...(latestPred?.employment_status ? { employment_status: latestPred.employment_status } : {}),
+            ...(latestPred?.employment_duration != null ? { employment_duration: String(latestPred.employment_duration) } : {}),
+            ...(latestPred?.industry_sector ? { industry_sector: latestPred.industry_sector } : {}),
+            ...(latestPred?.education_level ? { education_level: latestPred.education_level } : {}),
+            ...(latestPred?.marital_status ? { marital_status: latestPred.marital_status } : {}),
+            ...(latestPred?.housing_status ? { housing_status: latestPred.housing_status } : {}),
+            ...(latestPred?.years_at_residence != null ? { years_at_residence: String(latestPred.years_at_residence) } : {}),
+            ...(latestPred?.number_of_dependents != null ? { number_of_dependents: String(latestPred.number_of_dependents) } : {}),
+            // Step 2/3/5: existing autofill
             ...(profile?.latest_credit_score ? { credit_score: String(Math.round(profile.latest_credit_score)) } : latestPred?.credit_score ? { credit_score: String(latestPred.credit_score) } : {}),
             ...(latestPred?.number_of_late_payments != null ? { number_of_late_payments: String(latestPred.number_of_late_payments) } : {}),
             ...(latestPred?.worst_delinquency_status != null ? { worst_delinquency_status: latestPred.worst_delinquency_status } : {}),
