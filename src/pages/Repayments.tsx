@@ -684,8 +684,8 @@ export default function Repayments() {
                                       <span className="text-xs text-muted-foreground">Pay previous first</span>
                                     ) : (
                                       <>
-                                        <Button size="sm" onClick={() => handlePayEMI(r)} className="w-full text-xs">
-                                          Pay Now
+                                        <Button size="sm" onClick={() => handlePayEMI(r, 'early')} className="w-full text-xs">
+                                          Pay Now (Early)
                                         </Button>
                                         <Select
                                           value={paymentMode[r.id] || ''}
