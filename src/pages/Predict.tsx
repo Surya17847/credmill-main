@@ -637,12 +637,19 @@ const Predict = () => {
           </Card>
 
           {/* Approval Status from Backend */}
-          {prediction.approvalStatus && (
-            <Card className={`p-6 border-l-4 ${getApprovalStatusStyle(prediction.approvalStatus)}`}>
-              <h2 className="text-2xl font-bold mb-2 capitalize">{prediction.approvalStatus}</h2>
-              {prediction.approvalMessage && <p className="text-lg">{prediction.approvalMessage}</p>}
-            </Card>
-          )}
+          {prediction.approvalStatus && (() => {
+            const statusLabel =
+              prediction.approvalStatus === 'approved' ? 'Most likely accepted' :
+              prediction.approvalStatus === 'rejected' ? 'Most likely rejected' :
+              prediction.approvalStatus === 'conditional' ? 'Conditional approval' :
+              String(prediction.approvalStatus);
+            return (
+              <Card className={`p-6 border-l-4 ${getApprovalStatusStyle(prediction.approvalStatus)}`}>
+                <h2 className="text-2xl font-bold mb-2">{statusLabel}</h2>
+                {prediction.approvalMessage && <p className="text-lg">{prediction.approvalMessage}</p>}
+              </Card>
+            );
+          })()}
 
           <Card className="p-6">
             <h2 className="text-2xl font-bold mb-4">Summary Statistics</h2>
