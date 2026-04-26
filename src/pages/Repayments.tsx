@@ -239,20 +239,14 @@ export default function Repayments() {
     }
 
     const today = new Date();
-    const dueDate = new Date(repayment.due_date);
-    let daysDiff: number;
+    let resolvedMode: 'early' | 'on_time' | 'late_1_30' | 'late_31_60' | 'late_61_90' | 'missed';
 
-    // Determine payment timing based on mode
-    if (mode === 'late_1_30') {
-      daysDiff = 15; // simulate 1-30 days late
-    } else if (mode === 'late_31_60') {
-      daysDiff = 45;
-    } else if (mode === 'late_61_90') {
-      daysDiff = 75;
-    } else if (mode === 'missed') {
-      daysDiff = 95; // 90+ days
+    // Determine payment timing mode.
+    // Default ("Pay Now") = Early (+10) per industry-standard mapping.
+    if (mode === 'late_1_30' || mode === 'late_31_60' || mode === 'late_61_90' || mode === 'missed' || mode === 'on_time' || mode === 'early') {
+      resolvedMode = mode;
     } else {
-      daysDiff = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      resolvedMode = 'early';
     }
 
     const loan = loans.find(l => l.id === repayment.loan_id);
@@ -265,16 +259,11 @@ export default function Repayments() {
     const paidCount = repayments.filter(r => r.status !== 'pending').length;
 
     const result = calculatePaymentScoring(
-      daysDiff, repayment.emi_amount,
+      resolvedMode, repayment.emi_amount,
       consecutiveOnTime, consecutiveLate,
       consecutiveOnTime, utilization,
       isLastEMI, paidCount, repayments.length
     );
-
-    // Calculate DPD count
-    const currentDPD = repayments.filter(r => 
-      r.status === 'missed' || (r.status === 'paid_late' && r.penalty_amount > 0)
-    ).length + (result.status === 'missed' ? 1 : 0);
 
     // Check if 3 consecutive missed → downgrade
     let extraPenalty = 0;
