@@ -57,7 +57,7 @@ export default function Dashboard() {
   }
 
   const latestPrediction = predictions[0];
-  const latestScore = latestPrediction?.prediction_score;
+  const latestScore = profile?.latest_credit_score ?? latestPrediction?.prediction_score;
   const previousScore = predictions[1]?.prediction_score;
   const scoreChange = latestScore && previousScore ? latestScore - previousScore : null;
 
@@ -146,7 +146,7 @@ export default function Dashboard() {
             <div>
               <p className="text-sm text-muted-foreground">Risk Level</p>
               <p className={`text-lg font-bold ${getRiskColorFromScore(latestScore)}`}>
-                {getRiskLabelFromScore(latestScore)}
+                {profile?.latest_risk_level || getRiskLabelFromScore(latestScore)}
               </p>
             </div>
           </div>
