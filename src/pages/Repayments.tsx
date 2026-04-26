@@ -50,8 +50,15 @@ interface Repayment {
 }
 
 // ─── Credit Scoring Engine ──────────────────────────────────────────────────
+// Industry-standard mapping (driven by payment mode):
+//   early      → +10  (Pay Now defaults to Early)
+//   on_time    → +8
+//   late_1_30  → -15
+//   late_31_60 → -50
+//   late_61_90 → -75
+//   missed     → -100 (90+ days)
 function calculatePaymentScoring(
-  daysDiff: number, // positive = late, negative = early
+  mode: 'early' | 'on_time' | 'late_1_30' | 'late_31_60' | 'late_61_90' | 'missed',
   emiAmount: number,
   consecutiveOnTime: number,
   consecutiveLate: number,
@@ -67,38 +74,42 @@ function calculatePaymentScoring(
   let status = 'paid_on_time';
   let pdChange = 0;
 
-  // 1️⃣ Payment Timing Rules
-  if (daysDiff <= 0) {
-    // Early or on-time
-    if (daysDiff < 0) {
+  // 1️⃣ Payment Timing Rules — strict mapping
+  switch (mode) {
+    case 'early':
       status = 'paid_early';
       scoreImpact = 10;
       pdChange = -1;
-    } else {
+      break;
+    case 'on_time':
       status = 'paid_on_time';
       scoreImpact = 8;
       pdChange = -0.5;
-    }
-  } else if (daysDiff <= 30) {
-    status = 'paid_late';
-    scoreImpact = -15;
-    pdChange = 2;
-    fine = emiAmount * 0.02;
-  } else if (daysDiff <= 60) {
-    status = 'paid_late';
-    scoreImpact = -50;
-    pdChange = 5;
-    fine = emiAmount * 0.03;
-  } else if (daysDiff <= 90) {
-    status = 'paid_late';
-    scoreImpact = -75;
-    pdChange = 8;
-    penalty = emiAmount * 0.05;
-  } else {
-    status = 'missed';
-    scoreImpact = -100;
-    pdChange = 12;
-    penalty = emiAmount * 0.05;
+      break;
+    case 'late_1_30':
+      status = 'paid_late';
+      scoreImpact = -15;
+      pdChange = 2;
+      fine = emiAmount * 0.02;
+      break;
+    case 'late_31_60':
+      status = 'paid_late';
+      scoreImpact = -50;
+      pdChange = 5;
+      fine = emiAmount * 0.03;
+      break;
+    case 'late_61_90':
+      status = 'paid_late';
+      scoreImpact = -75;
+      pdChange = 8;
+      penalty = emiAmount * 0.05;
+      break;
+    case 'missed':
+      status = 'missed';
+      scoreImpact = -100;
+      pdChange = 12;
+      penalty = emiAmount * 0.05;
+      break;
   }
 
   // 3️⃣ Consecutive Behavior Bonus / Penalty
@@ -228,20 +239,14 @@ export default function Repayments() {
     }
 
     const today = new Date();
-    const dueDate = new Date(repayment.due_date);
-    let daysDiff: number;
+    let resolvedMode: 'early' | 'on_time' | 'late_1_30' | 'late_31_60' | 'late_61_90' | 'missed';
 
-    // Determine payment timing based on mode
-    if (mode === 'late_1_30') {
-      daysDiff = 15; // simulate 1-30 days late
-    } else if (mode === 'late_31_60') {
-      daysDiff = 45;
-    } else if (mode === 'late_61_90') {
-      daysDiff = 75;
-    } else if (mode === 'missed') {
-      daysDiff = 95; // 90+ days
+    // Determine payment timing mode.
+    // Default ("Pay Now") = Early (+10) per industry-standard mapping.
+    if (mode === 'late_1_30' || mode === 'late_31_60' || mode === 'late_61_90' || mode === 'missed' || mode === 'on_time' || mode === 'early') {
+      resolvedMode = mode;
     } else {
-      daysDiff = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      resolvedMode = 'early';
     }
 
     const loan = loans.find(l => l.id === repayment.loan_id);
@@ -254,16 +259,11 @@ export default function Repayments() {
     const paidCount = repayments.filter(r => r.status !== 'pending').length;
 
     const result = calculatePaymentScoring(
-      daysDiff, repayment.emi_amount,
+      resolvedMode, repayment.emi_amount,
       consecutiveOnTime, consecutiveLate,
       consecutiveOnTime, utilization,
       isLastEMI, paidCount, repayments.length
     );
-
-    // Calculate DPD count
-    const currentDPD = repayments.filter(r => 
-      r.status === 'missed' || (r.status === 'paid_late' && r.penalty_amount > 0)
-    ).length + (result.status === 'missed' ? 1 : 0);
 
     // Check if 3 consecutive missed → downgrade
     let extraPenalty = 0;
@@ -684,8 +684,8 @@ export default function Repayments() {
                                       <span className="text-xs text-muted-foreground">Pay previous first</span>
                                     ) : (
                                       <>
-                                        <Button size="sm" onClick={() => handlePayEMI(r)} className="w-full text-xs">
-                                          Pay Now
+                                        <Button size="sm" onClick={() => handlePayEMI(r, 'early')} className="w-full text-xs">
+                                          Pay Now (Early)
                                         </Button>
                                         <Select
                                           value={paymentMode[r.id] || ''}
@@ -698,10 +698,12 @@ export default function Repayments() {
                                             <SelectValue placeholder="Simulate..." />
                                           </SelectTrigger>
                                           <SelectContent>
-                                            <SelectItem value="late_1_30">Late (1-30d)</SelectItem>
-                                            <SelectItem value="late_31_60">Late (31-60d)</SelectItem>
-                                            <SelectItem value="late_61_90">Late (61-90d)</SelectItem>
-                                            <SelectItem value="missed">Missed (90+d)</SelectItem>
+                                            <SelectItem value="early">Early (+10)</SelectItem>
+                                            <SelectItem value="on_time">On Time (+8)</SelectItem>
+                                            <SelectItem value="late_1_30">Late (1-30d) (-15)</SelectItem>
+                                            <SelectItem value="late_31_60">Late (31-60d) (-50)</SelectItem>
+                                            <SelectItem value="late_61_90">Late (61-90d) (-75)</SelectItem>
+                                            <SelectItem value="missed">Missed (90+d) (-100)</SelectItem>
                                           </SelectContent>
                                         </Select>
                                       </>

@@ -8,7 +8,8 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-const API_URL = 'https://be-project-xak5.onrender.com';
+const API_URL = 'http://127.0.0.1:10000';
+// const API_URL = 'https://be-project-xak5.onrender.com';
 
 export default function Upload() {
   // Training data states

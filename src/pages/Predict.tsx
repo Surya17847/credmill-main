@@ -15,7 +15,8 @@ import { Loader2, AlertCircle, Download, CreditCard } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 
-const API_URL = 'https://be-project-xak5.onrender.com';
+const API_URL = 'http://127.0.0.1:10000';
+// const API_URL = 'https://be-project-xak5.onrender.com';
 
 const Predict = () => {
   const { toast } = useToast();
@@ -118,6 +119,17 @@ const Predict = () => {
         if (latestPred || profile) {
           setFormData(prev => ({
             ...prev,
+            // Step 1: Personal & Residential — autofill from latest record
+            ...(latestPred?.age != null ? { age: String(latestPred.age) } : {}),
+            ...(latestPred?.employment_status ? { employment_status: latestPred.employment_status } : {}),
+            ...(latestPred?.employment_duration != null ? { employment_duration: String(latestPred.employment_duration) } : {}),
+            ...(latestPred?.industry_sector ? { industry_sector: latestPred.industry_sector } : {}),
+            ...(latestPred?.education_level ? { education_level: latestPred.education_level } : {}),
+            ...(latestPred?.marital_status ? { marital_status: latestPred.marital_status } : {}),
+            ...(latestPred?.housing_status ? { housing_status: latestPred.housing_status } : {}),
+            ...(latestPred?.years_at_residence != null ? { years_at_residence: String(latestPred.years_at_residence) } : {}),
+            ...(latestPred?.number_of_dependents != null ? { number_of_dependents: String(latestPred.number_of_dependents) } : {}),
+            // Step 2/3/5: existing autofill
             ...(profile?.latest_credit_score ? { credit_score: String(Math.round(profile.latest_credit_score)) } : latestPred?.credit_score ? { credit_score: String(latestPred.credit_score) } : {}),
             ...(latestPred?.number_of_late_payments != null ? { number_of_late_payments: String(latestPred.number_of_late_payments) } : {}),
             ...(latestPred?.worst_delinquency_status != null ? { worst_delinquency_status: latestPred.worst_delinquency_status } : {}),
@@ -625,12 +637,19 @@ const Predict = () => {
           </Card>
 
           {/* Approval Status from Backend */}
-          {prediction.approvalStatus && (
-            <Card className={`p-6 border-l-4 ${getApprovalStatusStyle(prediction.approvalStatus)}`}>
-              <h2 className="text-2xl font-bold mb-2 capitalize">{prediction.approvalStatus}</h2>
-              {prediction.approvalMessage && <p className="text-lg">{prediction.approvalMessage}</p>}
-            </Card>
-          )}
+          {prediction.approvalStatus && (() => {
+            const statusLabel =
+              prediction.approvalStatus === 'approved' ? 'Most likely accepted' :
+              prediction.approvalStatus === 'rejected' ? 'Most likely rejected' :
+              prediction.approvalStatus === 'conditional' ? 'Conditional approval' :
+              String(prediction.approvalStatus);
+            return (
+              <Card className={`p-6 border-l-4 ${getApprovalStatusStyle(prediction.approvalStatus)}`}>
+                <h2 className="text-2xl font-bold mb-2">{statusLabel}</h2>
+                {prediction.approvalMessage && <p className="text-lg">{prediction.approvalMessage}</p>}
+              </Card>
+            );
+          })()}
 
           <Card className="p-6">
             <h2 className="text-2xl font-bold mb-4">Summary Statistics</h2>
@@ -683,21 +702,27 @@ const Predict = () => {
             <Card className="p-6">
               <h2 className="text-2xl font-bold mb-4 text-red-700 dark:text-red-400">⚠️ Needs Improvement</h2>
               <div className="space-y-3">
-                {prediction.rejectionReasons.map((reason: any, idx: number) => (
-                  <div key={idx} className="p-4 bg-red-50 dark:bg-red-950/30 border-l-4 border-red-500 rounded-r-lg">
-                    <h3 className="font-semibold text-lg mb-1">{reason.factor || reason}</h3>
-                    {reason.issue && <p className="text-sm mb-1"><strong>Issue:</strong> {reason.issue}</p>}
-                    {reason.improvement && <p className="text-sm mb-1"><strong>How to Improve:</strong> {reason.improvement}</p>}
-                    {reason.impact_score != null && (
-                      <div className="mt-2 flex items-center gap-2">
-                        <div className="flex-1 bg-red-200 dark:bg-red-900/50 rounded-full h-2">
-                          <div className="bg-red-600 h-2 rounded-full" style={{ width: `${Math.min(reason.impact_score * 100, 100)}%` }}></div>
+                {prediction.rejectionReasons.map((reason: any, idx: number) => {
+                  const hasImpact = reason.impact_score != null && Number(reason.impact_score) > 0;
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-4 bg-red-50 dark:bg-red-950/30 rounded-lg ${hasImpact ? 'border-l-4 border-red-500 rounded-r-lg' : 'border border-red-200 dark:border-red-800'}`}
+                    >
+                      <h3 className="font-semibold text-lg mb-1">{reason.factor || reason}</h3>
+                      {reason.issue && <p className="text-sm mb-1"><strong>Issue:</strong> {reason.issue}</p>}
+                      {reason.improvement && <p className="text-sm mb-1"><strong>How to Improve:</strong> {reason.improvement}</p>}
+                      {hasImpact && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="flex-1 bg-red-200 dark:bg-red-900/50 rounded-full h-2">
+                            <div className="bg-red-600 h-2 rounded-full" style={{ width: `${Math.min(reason.impact_score * 100, 100)}%` }}></div>
+                          </div>
+                          <span className="text-xs font-medium">Impact: {Number(reason.impact_score).toFixed(2)}</span>
                         </div>
-                        <span className="text-xs font-medium">Impact: {reason.impact_score.toFixed(2)}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </Card>
           )}
