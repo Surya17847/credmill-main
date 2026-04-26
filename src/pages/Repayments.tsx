@@ -408,7 +408,7 @@ export default function Repayments() {
         <Card className="p-12 text-center">
           <IndianRupee className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h2 className="text-xl font-semibold mb-2">No Active Loans</h2>
-          <p className="text-muted-foreground mb-4">Complete a credit risk prediction to get a loan approved and start tracking repayments.</p>
+          <p className="text-muted-foreground mb-4">Complete a credit risk prediction to create a repayment schedule and start tracking payments.</p>
           <Button onClick={() => window.location.href = '/predict'}>Make a Prediction</Button>
         </Card>
       ) : (
