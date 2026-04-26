@@ -26,7 +26,8 @@ import {
   Line
 } from "recharts";
 
-const API_URL = 'https://be-project-xak5.onrender.com';
+const API_URL = 'http://127.0.0.1:10000';
+// const API_URL = 'https://be-project-xak5.onrender.com';
 
 export default function Explainability() {
   const [loading, setLoading] = useState(false);

@@ -15,7 +15,8 @@ import { Loader2, AlertCircle, Download, CreditCard } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 
-const API_URL = 'https://be-project-xak5.onrender.com';
+const API_URL = 'http://127.0.0.1:10000';
+// const API_URL = 'https://be-project-xak5.onrender.com';
 
 const Predict = () => {
   const { toast } = useToast();
