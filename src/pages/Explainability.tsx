@@ -343,8 +343,10 @@ export default function Explainability() {
 
             {(() => {
               const shapFeatures = result?.feature_importance_explanation?.top_features || [];
-              const negativeFeatures = shapFeatures.filter((f: any) => f.impact === 'positive');
-              const positiveFeatures = shapFeatures.filter((f: any) => f.impact === 'negative');
+              // Correct mapping: impact === 'negative' → risk-increasing → Needs Improvement
+              //                  impact === 'positive' → risk-reducing  → Strengths
+              const negativeFeatures = shapFeatures.filter((f: any) => f.impact === 'negative');
+              const positiveFeatures = shapFeatures.filter((f: any) => f.impact === 'positive');
 
               return (
                 <div className="space-y-5 mt-2">
